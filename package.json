@@ -19,6 +19,7 @@
     "chart.js": "^4.5.0",
     "fontawesome-free": "^1.0.4",
     "lucide-react": "^0.544.0",
+    "multer": "^2.0.2",
     "nodemailer": "^7.0.7",
     "react": "^18.2.0",
     "react-bootstrap": "^2.8.0",

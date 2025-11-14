@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, Table, Row, Col, Badge, Button, Spinner, Alert, Tabs, Tab, Modal } from 'react-bootstrap';
-import { Mail, MessageSquare, Clock, User, CheckCircle, RefreshCw, Archive, Bell, Eye, XOctagon } from 'lucide-react';
+import { Mail, MessageSquare, Clock, User, CheckCircle, RefreshCw, Archive, Bell, Eye, XOctagon, CornerUpLeft } from 'lucide-react'; // Added CornerUpLeft
 import axios from 'axios';
 import { io } from 'socket.io-client';
 
@@ -115,10 +115,18 @@ const SupportData = () => {
             // Send the new status to the backend
             await axios.put(UPDATE_STATUS_API, { status: newStatus }, { headers: getAuthHeaders() });
             
-            // Optimistically update the local state to 'Closed'
+            // 1. Update the local state for the main ticket list
             setTickets(prevTickets => prevTickets.map(t => 
                 t.ticketId === ticketId ? { ...t, status: newStatus } : t
             ));
+
+            // 2. Update the selectedTicket state (which controls the modal content)
+            setSelectedTicket(prevSelected => 
+                prevSelected && prevSelected.ticketId === ticketId ? { ...prevSelected, status: newStatus } : prevSelected
+            );
+            
+            // 3. CRITICAL FIX: Close the modal after successful update
+            setShowDetailModal(false); 
             
         } catch (e) {
             console.error(`Failed to update status for ticket ${ticketId}:`, e.response?.data || e);
@@ -133,13 +141,13 @@ const SupportData = () => {
     // --- Helper Functions ---
     const getStatusBadge = (status) => {
         switch (status) {
-            case 'Open': return <Badge bg="danger">Open</Badge>;
-            case 'In Progress': return <Badge bg="warning" text="dark">In Progress</Badge>;
-            case 'Closed': return <Badge bg="success">Closed</Badge>;
-            case 'Pending': return <Badge bg="secondary">Pending</Badge>;
-            case 'Unread': return <Badge bg="primary">Unread</Badge>;
-            case 'Archived': return <Badge bg="secondary">Archived</Badge>;
-            default: return <Badge bg="secondary">{status}</Badge>;
+            case 'Open': return <Badge pill bg="danger">Open</Badge>;
+            case 'In Progress': return <Badge pill bg="warning" text="dark">In Progress</Badge>;
+            case 'Closed': return <Badge pill bg="success">Closed</Badge>;
+            case 'Pending': return <Badge pill bg="info">Pending</Badge>;
+            case 'Unread': return <Badge pill bg="primary">Unread</Badge>;
+            case 'Archived': return <Badge pill bg="secondary">Archived</Badge>;
+            default: return <Badge pill bg="secondary">{status}</Badge>;
         }
     };
 
@@ -155,38 +163,57 @@ const SupportData = () => {
                         <Col md={12}>
                             <h4 className="mb-3">{selectedTicket.subject}</h4>
                         </Col>
+                        
+                        {/* Status Bar */}
+                        <Col md={12} className="mb-3">
+                             <div className="d-flex align-items-center bg-light p-3 border rounded">
+                                <span className="text-muted me-3">Current Status:</span>
+                                {getStatusBadge(selectedTicket.status)}
+                                {selectedTicket.status !== 'Closed' && (
+                                    <span className="ms-auto text-muted small"><Clock size={14} className="me-1" /> Opened since {new Date(selectedTicket.createdAt).toLocaleDateString()}</span>
+                                )}
+                            </div>
+                        </Col>
+                        
+                        {/* Customer Info */}
                         <Col sm={6}>
                             <p className="mb-1 text-muted small">Customer Name:</p>
-                            <p className="fw-semibold">{selectedTicket.customerName}</p>
+                            <p className="fw-semibold d-flex align-items-center mb-0"><User size={14} className="me-2 text-muted" />{selectedTicket.customerName}</p>
                         </Col>
                         <Col sm={6}>
                             <p className="mb-1 text-muted small">Customer Email:</p>
-                            <p className="fw-semibold">{selectedTicket.customerEmail}</p>
+                            <p className="fw-semibold d-flex align-items-center mb-0"><Mail size={14} className="me-2 text-muted" />{selectedTicket.customerEmail}</p>
                         </Col>
                         <Col sm={6}>
                             <p className="mb-1 text-muted small">Department:</p>
-                            <p>{selectedTicket.department}</p>
-                        </Col>
-                        <Col sm={6}>
-                            <p className="mb-1 text-muted small">Status:</p>
-                            {getStatusBadge(selectedTicket.status)}
+                            <p className="fw-semibold">{selectedTicket.department}</p>
                         </Col>
                         <Col sm={6}>
                             <p className="mb-1 text-muted small">Submitted By (Staff):</p>
-                            <p>{selectedTicket.submittedBy ? selectedTicket.submittedBy.username : 'N/A'}</p>
-                        </Col>
-                        <Col sm={6}>
-                            <p className="mb-1 text-muted small">Date:</p>
-                            <p>{new Date(selectedTicket.createdAt).toLocaleString()}</p>
+                            <p className="fw-semibold">{selectedTicket.submittedBy ? selectedTicket.submittedBy.username : 'N/A'}</p>
                         </Col>
                         <Col md={12} className="pt-3">
-                            <Card className="bg-light border-0">
+                            <Card className="bg-white border">
+                                <Card.Header className="text-primary fw-bold">Issue Message:</Card.Header>
                                 <Card.Body>
-                                    <h6 className="text-primary">Issue Message:</h6>
                                     <p style={{ whiteSpace: 'pre-wrap' }}>{selectedTicket.message}</p>
                                 </Card.Body>
                             </Card>
                         </Col>
+                        
+                         {/* Reply Placeholder (UI Enhancement) */}
+                        {/* <Col md={12} className="mt-4">
+                            <Card className="bg-light border-0">
+                                <Card.Body className="d-flex justify-content-between align-items-center">
+                                    <span className="text-muted">
+                                        <CornerUpLeft size={16} className="me-2" />
+                                        Future Feature: Reply to customer directly here.
+                                    </span>
+                                    <Button variant="outline-secondary" size="sm" disabled>Send Reply</Button>
+                                </Card.Body>
+                            </Card>
+                        </Col> */}
+
                     </Row>
                 ) : (
                     <p>Loading ticket details...</p>
@@ -234,7 +261,7 @@ const SupportData = () => {
                         <td>{getStatusBadge(ticket.status)}</td>
                         {/* submittedBy is an object if populated by Mongoose */}
                         <td>{ticket.submittedBy ? ticket.submittedBy.username : 'N/A'}</td>
-                        <td className="text-muted small">{new Date(ticket.createdAt).toLocaleString()}</td>
+                        <td className="text-muted small">{new Date(ticket.createdAt).toLocaleDateString()}</td>
                         <td className="d-flex gap-2">
                             {/* View Action */}
                             <Button 
@@ -326,21 +353,21 @@ const SupportData = () => {
                             </Button>
                         </div>
                     )}
-                    <Button variant="outline-primary" className="d-flex align-items-center" onClick={fetchSupportData} disabled={loading}>
+                    <Button variant="primary" className="d-flex align-items-center fw-semibold" onClick={fetchSupportData} disabled={loading}>
                         <RefreshCw size={18} className="me-2" />
                         {loading ? 'Refreshing...' : 'Refresh Data'}
                     </Button>
                 </Col>
             </Row>
 
-            <Card className="shadow-sm border-0">
+            <Card className="shadow-lg border-0">
                 <Card.Body className="p-0">
                     {/* Display Error prominently if fetching failed */}
                     {error && <Alert variant="danger" className="m-3">{error}</Alert>}
 
                     {loading && (
                         <div className="text-center py-5">
-                            <Spinner animation="border" size="sm" className="me-2" /> Loading records...
+                            <Spinner animation="border" variant="primary" size="sm" className="me-2" /> Loading records...
                         </div>
                     )}
 

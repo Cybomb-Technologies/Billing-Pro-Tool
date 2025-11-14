@@ -3,17 +3,18 @@ import { Tab, Nav, Row, Col, Card, Form, Button, Table, Alert, Spinner, InputGro
 import axios from "axios";
 import { 
     Briefcase, DollarSign, Users, Trash, UserPlus, Save, 
-    Landmark, Globe, CreditCard // FIX: Replaced 'Bank' with 'Landmark' for Bank Details
+    Landmark, Globe, CreditCard, UploadCloud // Added UploadCloud icon
 } from 'lucide-react';
 
 // Base URL for all settings API calls (assuming a centralized settings route)
 const SETTINGS_API_BASE_URL = "http://localhost:5000/api/settings";
+const UPLOAD_API_BASE_URL = "http://localhost:5000/api/upload/logo"; // Conceptual endpoint for file upload
 const USERS_API_BASE_URL = "http://localhost:5000/api/users";
 
 const CURRENCIES = [
     { code: 'INR', name: 'Indian Rupee (₹)' },
     { code: 'USD', name: 'US Dollar ($)' },
-    { code: 'EUR', name: 'Euro (€)' },
+    { code: 'EUR', 'name': 'Euro (€)' },
     { code: 'GBP', name: 'British Pound (£)' },
     { code: 'CAD', name: 'Canadian Dollar (C$)' },
     { code: 'AUD', name: 'Australian Dollar (A$)' },
@@ -28,13 +29,16 @@ const Settings = () => {
   const [users, setUsers] = useState([]);
   const [form, setForm] = useState({ username: "", email: "", password: "", role: "staff" });
   
+  // New state to hold the selected file before upload
+  const [selectedFile, setSelectedFile] = useState(null); 
+  
   // State for Settings Tabs
   const [company, setCompany] = useState({ 
     name: "", 
     email: "", 
     phone: "", 
     address: "", 
-    logo: "",
+    logo: "", // This will store the final file path/URL returned from the server
     branchLocation: "", 
     gstIn: "", 
     currency: "INR" 
@@ -52,6 +56,7 @@ const Settings = () => {
   });
 
   const [loading, setLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false); // New state for upload status
   const [alert, setAlert] = useState({ show: false, message: '', type: '' });
 
   const showAlert = (message, type = 'success') => {
@@ -81,10 +86,11 @@ const Settings = () => {
         const res = await axios.get(SETTINGS_API_BASE_URL, { headers: getAuthHeaders() });
         const data = res.data;
 
-        // Apply fetched data, ensuring fallbacks for new fields
+        // Apply fetched data
         if (data.company) setCompany(prev => ({ 
             ...prev, 
             ...data.company,
+            logo: data.company.logo || '', // Fetch the stored logo path
             branchLocation: data.company.branchLocation || '',
             gstIn: data.company.gstIn || '',
             currency: data.company.currency || 'INR',
@@ -105,6 +111,43 @@ const Settings = () => {
     } finally {
         setLoading(false);
     }
+  };
+  
+  // --- New File Upload Handler ---
+  const handleFileUpload = async () => {
+      if (!selectedFile) {
+          showAlert('Please select a file to upload.', 'warning');
+          return;
+      }
+
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append('logo', selectedFile); // Key 'logo' must match backend expectation
+
+      try {
+          const res = await axios.post(UPLOAD_API_BASE_URL, formData, {
+              headers: { 
+                  ...getAuthHeaders(), 
+                  'Content-Type': 'multipart/form-data' // Important for file uploads
+              }
+          });
+
+          // ASSUMPTION: Backend returns the URL/path of the saved file
+          const logoPath = res.data.logoUrl || res.data.path;
+
+          // 1. Update the local state with the new path
+          setCompany(prev => ({ ...prev, logo: logoPath }));
+          // 2. Clear the file input state
+          setSelectedFile(null);
+          
+          showAlert('Logo uploaded successfully! Click "Save Company Info" to finalize.', 'success');
+          
+      } catch (error) {
+          console.error("Error uploading logo:", error.response?.data || error);
+          showAlert(`Logo upload failed: ${error.response?.data?.message || 'Check server logs.'}`, 'danger');
+      } finally {
+          setIsUploading(false);
+      }
   };
 
   // --- User Management Functions ---
@@ -134,12 +177,11 @@ const Settings = () => {
     }
   };
 
-  // --- Generic Save Function ---
+  // --- Generic Save Function (Saves the path/URL currently in state) ---
 
   const handleSave = async (e, category, dataToSave) => {
     e.preventDefault();
     try {
-        // ASSUMPTION: Backend uses PATCH or POST /api/settings/:category to update
         await axios.patch(`${SETTINGS_API_BASE_URL}/${category}`, dataToSave, { headers: getAuthHeaders() });
         showAlert(`${category} settings saved successfully!`, 'success');
     } catch (error) {
@@ -201,6 +243,46 @@ const Settings = () => {
                               </Form.Group>
                             </Col>
                           </Row>
+
+                          {/* START LOGO UPLOAD SECTION */}
+                          <Form.Group className="mb-3">
+                            <Form.Label>Company Logo (JPG/PNG)</Form.Label>
+                            {/* Logo Preview */}
+                            {company.logo && (
+                                <div className="mb-2">
+                                    <p className="text-muted small mb-1">Current Logo Path: `{company.logo}`</p>
+                                    {/* Attempt to display image from path/URL */}
+                                    <img src={`http://localhost:5000${company.logo}`} alt="Company Logo Preview" style={{ maxWidth: '150px', maxHeight: '50px', border: '1px solid #ddd', padding: '5px' }} />
+                                </div>
+                            )}
+
+                            <InputGroup>
+                                <Form.Control
+                                    type="file"
+                                    accept=".jpg,.jpeg,.png"
+                                    onChange={(e) => setSelectedFile(e.target.files[0])}
+                                />
+                                <Button 
+                                    variant="outline-primary" 
+                                    onClick={handleFileUpload} 
+                                    disabled={!selectedFile || isUploading}
+                                >
+                                    {isUploading ? (
+                                        <>
+                                            <Spinner animation="border" size="sm" className="me-2" /> Uploading...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <UploadCloud size={18} className="me-1" /> Upload File
+                                        </>
+                                    )}
+                                </Button>
+                            </InputGroup>
+                            <Form.Text className="text-danger">
+                                IMPORTANT: Click 'Upload File' after selection, then click 'Save Company Info'.
+                            </Form.Text>
+                          </Form.Group>
+                          {/* END LOGO UPLOAD SECTION */}
 
                           <Row>
                             <Col md={6}>
@@ -280,7 +362,7 @@ const Settings = () => {
                             <Col md={6}>
                               <Form.Group className="mb-3">
                                 <Form.Label>IFSC / Swift Code</Form.Label>
-                                <Form.Control value={payment.ifsc} onChange={(e) => setPayment({ ...payment, ifsc: e.target.value })} placeholder="e.g., SBIN0001234 (IFSC) or CHASUS33 (SWIFT)" />
+                                <Form.Control value={payment.ifsc} onChange={(e) => setPayment({ ...payment.ifsc, ifsc: e.target.value })} placeholder="e.g., SBIN0001234 (IFSC) or CHASUS33 (SWIFT)" />
                               </Form.Group>
                             </Col>
                           </Row>

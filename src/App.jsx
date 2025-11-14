@@ -20,12 +20,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Operations from './pages/Operations';
 import StaffLog from './pages/StaffLog';
 import SupportData from './pages/Support-data';
-import AppUI from '../website-ui/app1';
-import Homepage from '../website-ui/Home';
-import Privacy from '../website-ui/Legals/privacy';
-import TermsOfService from '../website-ui/Legals/terms-service';
-import CookiePolicy from '../website-ui/Legals/cookie';
-import FeaturesPage from '../website-ui/features';
+
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
   return user ? children : <Navigate to="/login" />;
@@ -48,17 +43,6 @@ function App() {
               <Routes>
                 <Route path="/login" element={<Login />} />
 
-                {/* The AppUI Layout Route (Parent) */}
-                <Route path="/*" element={<AppUI />}> 
-                    
-                    {/* These routes will render INSIDE AppUI's <Outlet /> */}
-                    <Route index element={<Homepage />} /> {/* Matches exactly '/' */}
-                    <Route path="home" element={<Homepage />} />
-                    <Route path="privacy-policy" element={<Privacy />} />
-                    <Route path="terms-of-services" element={<TermsOfService />} />
-                    <Route path="cookies-policy" element={<CookiePolicy />} />
-                    <Route path="features" element={<FeaturesPage/>}/>
-                </Route>
                 {/* Protected routes */}
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
@@ -74,7 +58,7 @@ function App() {
                 <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
                 <Route path="/Operations" element={<RoleBasedRoute allowedRoles={['staff','admin']}><Operations /></RoleBasedRoute>} />
                 {/* Default redirect */}
-                <Route path="/" element={<AppUI />} />
+                <Route path="/" element={<Login />} />
                 
               </Routes>
             {/* </Container> */}

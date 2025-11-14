@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Table, 
   Button, 
@@ -31,7 +31,7 @@ const Products = () => {
     price: '',
     costPrice: '',
     sku: '',
-    category: '',
+    category: '', // This can be a new or existing category name
     taxRate: '',
     stock: '', 
     lowStockThreshold: 10
@@ -41,11 +41,27 @@ const Products = () => {
   const [currencySymbol, setCurrencySymbol] = useState('$'); 
   const [currencyCode, setCurrencyCode] = useState('USD'); 
 
-  // Sample categories for dropdown
-  const categories = [
-    'All', 'Electronics', 'Clothing', 'Books', 'Home & Kitchen', 
-    'Sports', 'Beauty', 'Toys', 'Automotive', 'Food & Beverages'
-  ];
+  // --- DYNAMIC CATEGORIES ---
+  // Memoize the list of unique categories from loaded products + default options
+  const existingCategories = useMemo(() => {
+    const defaultCategories = ['All', 'Electronics', 'Clothing', 'Books', 'Home & Kitchen'];
+    const productCategories = products
+      .map(p => p.category)
+      .filter(Boolean); // Filter out null/undefined categories
+
+    const uniqueCategories = new Set([...defaultCategories, ...productCategories]);
+    
+    // Convert Set back to Array, ensuring 'All' is at the start (if present)
+    const categoryArray = Array.from(uniqueCategories).sort();
+    const allIndex = categoryArray.indexOf('All');
+    if (allIndex > 0) {
+      categoryArray.splice(allIndex, 1);
+      categoryArray.unshift('All');
+    }
+
+    return categoryArray;
+  }, [products]);
+
   
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
@@ -131,7 +147,9 @@ const handleSubmit = async (e) => {
       costPrice: formData.costPrice ? parseFloat(formData.costPrice) : undefined,
       taxRate: formData.taxRate ? parseFloat(formData.taxRate) : 18,
       stock: parseInt(formData.stock) || 0, // Ensure stock is an integer
-      lowStockThreshold: parseInt(formData.lowStockThreshold) || 10
+      lowStockThreshold: parseInt(formData.lowStockThreshold) || 10,
+      // Ensure category is cleaned up if empty
+      category: formData.category ? formData.category.trim() : null 
     };
 
     if (editingProduct) {
@@ -323,7 +341,8 @@ const handleDelete = async () => {
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
                 >
-                  {categories.map(category => (
+                  {/* Use dynamically generated categories */}
+                  {existingCategories.map(category => (
                     <option key={category} value={category}>{category}</option>
                   ))}
                 </Form.Select>
@@ -529,19 +548,41 @@ const handleDelete = async () => {
               </Col>
             </Row>
             
+            {/* 🟢 ENHANCEMENT: REPLACED SIMPLE DATALIST INPUT WITH INPUTGROUP + DROPDOWN */}
             <Form.Group className="mb-3">
-              <Form.Label>Category</Form.Label>
-              <Form.Select
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-              >
-                <option value="">Select Category</option>
-                {categories.filter(cat => cat !== 'All').map(category => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </Form.Select>
+                <Form.Label>Category (Select Existing or Type New)</Form.Label>
+                <InputGroup>
+                    <Form.Control
+                        type="text"
+                        name="category"
+                        value={formData.category}
+                        onChange={handleChange}
+                        placeholder="Select existing category or type new name"
+                        aria-label="Product Category"
+                    />
+                    <Dropdown as={InputGroup.Append} className="ms-0">
+                        <Dropdown.Toggle variant="outline-secondary">
+                            Existing Categories
+                        </Dropdown.Toggle>
+                        <Dropdown.Menu className="dropdown-menu-end" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                            <Dropdown.Header>Select an Existing Category:</Dropdown.Header>
+                            {/* Filter out 'All' and null/empty categories for product creation */}
+                            {existingCategories.filter(cat => cat !== 'All' && cat).map(category => (
+                                <Dropdown.Item 
+                                    key={category} 
+                                    onClick={() => setFormData(prev => ({ ...prev, category: category }))}
+                                >
+                                    {category}
+                                </Dropdown.Item>
+                            ))}
+                        </Dropdown.Menu>
+                    </Dropdown>
+                </InputGroup>
+                <Form.Text className="text-muted">
+                    Click the "Existing Categories" button or type a new category name.
+                </Form.Text>
             </Form.Group>
+
 
             {formData.price && (
               <Card className="bg-light">
