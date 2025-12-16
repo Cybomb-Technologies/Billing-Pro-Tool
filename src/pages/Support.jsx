@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Card, Container, Form, Button, Row, Col, Alert, InputGroup, Table, Spinner, Badge, Modal } from 'react-bootstrap';
 import { Search, Mail, Phone, MessageSquare, BookOpen, Download, HelpCircle, Clock, Copy, PhoneCall } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
 // API Endpoint for submitting new tickets
-const SUPPORT_API_BASE_URL = 'http://localhost:5000/api/support';
+const SUPPORT_API_BASE_URL = `${API_BASE_URL}/support`;
 
 const Support = () => {
     const [searchTerm, setSearchTerm] = useState('');

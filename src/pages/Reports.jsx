@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, Row, Col, Spinner, Alert, Button, Badge, Table } from 'react-bootstrap';
 import axios from 'axios';
 import { TrendingUp, DollarSign, Clock, Package, BarChart, RefreshCw, ChevronUp, ChevronDown } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 // API Endpoints
-const SETTINGS_API_BASE_URL = "http://localhost:5000/api/settings";
+const SETTINGS_API_BASE_URL = `${API_BASE_URL}/settings`;
 
 const getStatusBadge = (status) => {
     switch (status) {
@@ -72,7 +73,7 @@ const Reports = ({ userRole = 'admin' }) => {
   const fetchInvoices = useCallback(async () => {
     setError(null);
     try {
-      const response = await axios.get('http://localhost:5000/api/invoices?limit=1000', { 
+      const response = await axios.get(`${API_BASE_URL}/invoices?limit=1000`, { 
         headers: getAuthHeaders()
       });
       
@@ -97,7 +98,7 @@ const Reports = ({ userRole = 'admin' }) => {
       if (userRole !== 'admin') return; 
       
       try {
-          const response = await axios.get('http://localhost:5000/api/stafflogs', { 
+          const response = await axios.get(`${API_BASE_URL}/stafflogs`, { 
               headers: getAuthHeaders() 
           });
           

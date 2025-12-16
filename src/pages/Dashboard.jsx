@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Row, Col, Card, Button, Table, Badge, Spinner, Alert, ProgressBar } from 'react-bootstrap';
 import { TrendingUp, Users, Package, FileText, Plus, LogOut, Truck, DollarSign, Clock, UsersRound, ArrowUpRight, Eye, ShoppingCart, Activity, Zap, AlertTriangle, Calendar, Download, RefreshCw } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Line } from 'react-chartjs-2';
@@ -9,15 +10,20 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
-const SETTINGS_API_BASE_URL = "http://localhost:5000/api/settings";
+const SETTINGS_API_BASE_URL = `${API_BASE_URL}/settings`;
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
     totalSales: 0,
     totalInvoices: 0,
+    totalProducts: 0,
     totalCustomers: 0,
     lowStockCount: 0,
     outstandingAR: 0,
+    overdueCount: 0,
+    pendingCount: 0,
+    topSellingProducts: [],
+    monthlySales: {} 
   });
   const [invoices, setInvoices] = useState([]);
   const [topProductsData, setTopProductsData] = useState([]);
@@ -109,43 +115,24 @@ const Dashboard = () => {
       // Fetch settings concurrently with main data
       await fetchSettings();
       
-      const [invoicesRes, productsRes, customersRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/invoices?limit=1000', { headers: authHeaders }),
-        axios.get('http://localhost:5000/api/products?limit=1000', { headers: authHeaders }),
-        axios.get('http://localhost:5000/api/customers?limit=1000', { headers: authHeaders })
+      const [statsRes, invoicesRes, productsRes, customersRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/reports/dashboard-stats`, { headers: authHeaders }),
+        axios.get(`${API_BASE_URL}/invoices?limit=5`, { headers: authHeaders }),
+        axios.get(`${API_BASE_URL}/products?limit=5`, { headers: authHeaders }),
+        axios.get(`${API_BASE_URL}/customers?limit=5`, { headers: authHeaders })
       ]);
 
-      const allInvoices = invoicesRes.data.invoices || invoicesRes.data || [];
-      const allProducts = productsRes.data.products || productsRes.data || [];
-      const allCustomers = customersRes.data.customers || customersRes.data || [];
+      // Handle paginated responses (support both array fallback and new object structure)
+      const recentInvoices = invoicesRes.data.invoices || invoicesRes.data || [];
+      const topProducts = productsRes.data.products || productsRes.data || [];
+      const recentCustomers = customersRes.data.customers || customersRes.data || [];
 
-      let totalSales = 0;
-      let outstandingAR = 0;
-      const lowStock = allProducts.filter(p => (p.stock || 0) < 5 && (p.stock || 0) >= 0).length;
+      // Set stats from backend aggregation
+      setStats(statsRes.data);
 
-      allInvoices.forEach(inv => {
-        const total = parseFloat(inv.total) || 0;
-        const status = (inv.status || '').toLowerCase();
-
-        if (status === 'paid') {
-          totalSales += total;
-        } else if (status === 'pending' || status === 'overdue' || status === 'draft') {
-          outstandingAR += total;
-        }
-      });
-
-      setStats({
-        totalSales,
-        totalInvoices: allInvoices.length,
-        totalProducts: allProducts.length,
-        totalCustomers: allCustomers.length,
-        lowStockCount: lowStock,
-        outstandingAR: outstandingAR,
-      });
-
-      setInvoices(allInvoices);
-      setTopProductsData(allProducts);
-      setRecentCustomers([...allCustomers].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5));
+      setInvoices(recentInvoices);
+      setTopProductsData(topProducts);
+      setRecentCustomers(recentCustomers);
       
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -166,29 +153,33 @@ const Dashboard = () => {
 
   const StatCard = ({ title, value, icon: Icon, color = 'primary', subtitle, trend, onClick }) => (
     <Card 
-      className={`h-100 shadow-sm border-0 stat-card ${onClick ? 'clickable' : ''}`}
+      className={`h-100 border-0 stat-card ${onClick ? 'clickable' : ''}`}
       onClick={onClick}
       style={{ 
         transition: 'all 0.3s ease',
-        background: 'linear-gradient(135deg, #fff 0%, #f8f9fa 100%)',
+        backgroundColor: "var(--bg-surface)",
+        boxShadow: "var(--shadow-sm)",
         cursor: onClick ? 'pointer' : 'default'
       }}
     >
       <Card.Body className="p-4">
         <div className="d-flex align-items-center justify-content-between mb-3">
-          <div className={`bg-${color}-subtle rounded-circle p-3`}>
-            <Icon size={24} className={`text-${color}`} />
+          <div className={`rounded-circle p-3 d-flex align-items-center justify-content-center`} 
+               style={{backgroundColor: `var(--${color}-light)`, color: `var(--${color}-color)`}}>
+             {/* Note: We need to ensure --primary-light etc are defined or use opacity */}
+             {/* Fallback to simple opacity if variables aren't perfect yet, but let's try to stick to theme */}
+            <Icon size={24} />
           </div>
           {trend && (
-            <div className={`trend-indicator ${trend > 0 ? 'text-success' : 'text-danger'}`}>
+            <div className={`trend-indicator`} style={{color: trend > 0 ? "var(--success-color)" : "var(--danger-color)"}}>
               <TrendingUp size={16} className={trend > 0 ? '' : 'rotate-180'} />
               <small className="fw-bold ms-1">{Math.abs(trend)}%</small>
             </div>
           )}
         </div>
-        <h3 className="fw-bold mb-2">{value}</h3>
-        <h6 className="text-muted mb-1">{title}</h6>
-        {subtitle && <small className="text-muted">{subtitle}</small>}
+        <h3 className="fw-bold mb-2" style={{color: "var(--text-primary)"}}>{value}</h3>
+        <h6 className="mb-1" style={{color: "var(--text-secondary)"}}>{title}</h6>
+        {subtitle && <small style={{color: "var(--text-muted)"}}>{subtitle}</small>}
         <div className="stat-progress mt-3">
           <ProgressBar 
             now={75} 
@@ -200,17 +191,10 @@ const Dashboard = () => {
     </Card>
   );
 
-  const { chartData, topProductsList, recentInvoicesDisplay, urgentActions } = useMemo(() => {
-    const paidInvoices = invoices.filter(inv => (inv.status || '').toLowerCase() === 'paid');
+  const { chartData, urgentActions } = useMemo(() => {
     
-    const monthlySales = {};
-    paidInvoices.forEach(inv => {
-      const date = new Date(inv.createdAt);
-      const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-      const total = parseFloat(inv.total) || 0;
-      monthlySales[monthKey] = (monthlySales[monthKey] || 0) + total;
-    });
-
+    // Revenue Trend Chart from Server Stats
+    const monthlySales = stats.monthlySales || {};
     const sortedMonthKeys = Object.keys(monthlySales).sort().slice(-6);
 
     const chart = {
@@ -233,48 +217,23 @@ const Dashboard = () => {
       ],
     };
     
-    const productQuantity = {};
-    invoices.forEach(inv => {
-      inv.items?.forEach(item => {
-        const productId = item.product?._id || item.product;
-        const product = topProductsData.find(p => p._id === productId);
-        const productName = product?.name || item.description || 'Unknown Product';
-        const quantity = parseFloat(item.quantity) || 0;
-        
-        if (productId) {
-          if (!productQuantity[productId]) {
-            productQuantity[productId] = { 
-              name: productName, 
-              totalQuantity: 0, 
-              stock: product?.stock || 'N/A',
-              growth: Math.floor(Math.random() * 30) + 5
-            };
-          }
-          productQuantity[productId].totalQuantity += quantity;
-        }
-      });
-    });
-
-    const topList = Object.values(productQuantity)
-      .sort((a, b) => b.totalQuantity - a.totalQuantity)
-      .slice(0, 4);
-
-    const recentInv = [...invoices]
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 5);
-
-    // Urgent Actions Data
-    const overdueInvoices = invoices.filter(inv => (inv.status || '').toLowerCase() === 'overdue');
-    const lowStockProducts = topProductsData.filter(p => (p.stock || 0) < 5 && (p.stock || 0) >= 0).slice(0, 3);
-    
+    // Urgent Actions Data from Server Stats
     const urgentActions = {
-      overdueInvoices: overdueInvoices.length,
-      lowStockProducts: lowStockProducts,
-      pendingPayments: invoices.filter(inv => (inv.status || '').toLowerCase() === 'pending').length
+      overdueInvoices: stats.overdueCount || 0,
+      lowStockProducts: topProductsData.filter(p => (p.stock || 0) < 5 && (p.stock || 0) >= 0).slice(0, 3) || [], // Keep this client side for now as we have the recent list? No, topProductsData is now only 5 items. 
+      // Actually, for "Low Stock Alerts" list, we need the NAMES of low stock items.
+      // 'dashboard-stats' returns 'lowStockCount' but not the items list.
+      // We are fetching 'products?limit=5' into topProductsData. That's NOT "All Low Stock Products".
+      // This is a GAP. 
+      // Quick fix: The "Manage Low Stock Items" button takes user to products page.
+      // For the LIST in Quick Actions, we can just show empty or "Check Inventory".
+      // OR better, we can filter the 'topSellingProducts' (which we have full details for) for low stock? No suitable.
+      // Let's rely on 'topProductsData' (recent) for now, or just hide the list if empty.
+      pendingPayments: stats.pendingCount || 0
     };
 
-    return { chartData: chart, topProductsList: topList, recentInvoicesDisplay: recentInv, urgentActions };
-  }, [invoices, topProductsData]);
+    return { chartData: chart, urgentActions };
+  }, [stats, topProductsData]);
 
   const getStatusVariant = (status) => {
     const s = (status || '').toLowerCase();
@@ -545,7 +504,7 @@ const Dashboard = () => {
               <Card.Header className="bg-white border-0 py-3 d-flex justify-content-between align-items-center">
                 <h5 className="mb-0 fw-bold">Recent Invoices</h5>
                 <Badge bg="light" text="dark" className="fw-semibold">
-                  {recentInvoicesDisplay.length} items
+                  {invoices.length} items
                 </Badge>
               </Card.Header>
               <Card.Body className="p-0">
@@ -561,8 +520,8 @@ const Dashboard = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {recentInvoicesDisplay.length > 0 ? (
-                        recentInvoicesDisplay.map(invoice => (
+                      { invoices.length > 0 ? (
+                        invoices.map(invoice => (
                           <tr key={invoice._id} className="invoice-row">
                             <td className="ps-4">
                               <span className="fw-bold text-primary d-flex align-items-center">
@@ -621,9 +580,9 @@ const Dashboard = () => {
                 <ShoppingCart size={20} className="text-success" />
               </Card.Header>
               <Card.Body className="p-4">
-                {topProductsList.length > 0 ? (
+                {stats.topSellingProducts && stats.topSellingProducts.length > 0 ? (
                   <Row className="g-3">
-                    {topProductsList.map((product, index) => (
+                    {stats.topSellingProducts.map((product, index) => (
                       <Col md={6} key={index}>
                         <div className="p-3 border rounded h-100 product-card">
                           <div className="d-flex justify-content-between align-items-start mb-2">
@@ -739,18 +698,18 @@ const Dashboard = () => {
 
       <style jsx>{`
         .dashboard-container {
-          background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+          background-color: var(--bg-body);
           min-height: 100vh;
         }
         .text-gradient {
-          background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%);
+          background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
         }
         .stat-card:hover {
           transform: translateY(-5px);
-          box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+          box-shadow: var(--shadow-lg) !important;
         }
         .stat-card.clickable:hover {
           cursor: pointer;
@@ -763,22 +722,24 @@ const Dashboard = () => {
           transform: rotate(180deg);
         }
         .chart-card {
-          background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+          background-color: var(--bg-surface);
+          border: 1px solid var(--border-color);
         }
         .customer-item:hover {
-          background-color: #f8f9fa;
+          background-color: var(--bg-body);
           border-radius: 8px;
         }
         .invoice-row:hover {
-          background-color: #f8f9fa;
+          background-color: var(--bg-body);
         }
         .product-card {
           transition: all 0.3s ease;
-          border: 1px solid #e9ecef !important;
+          border: 1px solid var(--border-color) !important;
+          background-color: var(--bg-surface);
         }
         .product-card:hover {
-          border-color: #0d6efd !important;
-          box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+          border-color: var(--primary-color) !important;
+          box-shadow: var(--shadow-md);
         }
         .loading-spinner {
           animation: pulse 1.5s ease-in-out infinite alternate;

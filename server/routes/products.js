@@ -8,13 +8,35 @@ const createObjectCsvStringifier = pkg.createObjectCsvStringifier;
 
 const router = express.Router();
 
-// Get all products (Now fetches products with stock/threshold fields)
+// Get all products with pagination
 router.get('/', auth, async (req, res) => {
   try {
-    console.log('Fetching all active products...');
-    const products = await Product.find({ isActive: true });
-    console.log(`Found ${products.length} active products`);
-    res.json(products);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Build filter query (currently just active products)
+    const query = { isActive: true };
+
+    // Execute queries in parallel
+    const [products, totalItems] = await Promise.all([
+      Product.find(query).skip(skip).limit(limit).sort({ createdAt: -1 }), // Sort by newest
+      Product.countDocuments(query)
+    ]);
+
+    const totalPages = Math.ceil(totalItems / limit);
+
+    console.log(`Fetched page ${page} with ${products.length} products. Total: ${totalItems}`);
+    
+    // Return standard pagination structure
+    res.json({
+      products,
+      currentPage: page,
+      totalPages,
+      totalItems,
+      hasMore: page < totalPages
+    });
+
   } catch (error) {
     console.error('Error fetching products:', error);
     res.status(500).json({ message: error.message });

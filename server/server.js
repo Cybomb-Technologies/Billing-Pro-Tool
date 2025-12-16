@@ -5,7 +5,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import http from 'http'; // Import http module
 import { initializeSocket } from './utils/notifier.js'; // Import the socket initializer
-
+import path from 'path';
+import { fileURLToPath } from 'url';
 // Import routes
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
@@ -17,11 +18,13 @@ import reportRoutes from './routes/reports.js';
 import staffRoutes from './routes/stafflogs.js';
 import settingsRoutes from './routes/settings.js';
 import supportRoutes from './routes/support.js';
-
+import uploadRoutes from './routes/upload.js';
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app); // Create an HTTP server
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename); 
 
 // Middleware
 app.use(cors());
@@ -48,7 +51,8 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/stafflogs', staffRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/support', supportRoutes);
-
+app.use('/api/upload', uploadRoutes);
+app.use(express.static(path.join(__dirname, 'public'))); 
 // Basic route for testing
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!' });
