@@ -3,10 +3,12 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import http from 'http'; // Import http module
-import { initializeSocket } from './utils/notifier.js'; // Import the socket initializer
+import http from 'http';
 
-// Import routes
+// Socket initializer
+import { initializeSocket } from './utils/notifier.js';
+
+// Routes
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import productRoutes from './routes/products.js';
@@ -21,23 +23,44 @@ import supportRoutes from './routes/support.js';
 dotenv.config();
 
 const app = express();
-const server = http.createServer(app); // Create an HTTP server
+const server = http.createServer(app);
 
-// Middleware
-app.use(cors());
+// ======================
+// CORS CONFIG (IMPORTANT)
+// ======================
+app.use(
+  cors({
+    origin: 'http://localhost:3000',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    credentials: true
+  })
+);
+
+// ======================
+// MIDDLEWARE
+// ======================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Database connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/billing_app';
-mongoose.connect(MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.log('MongoDB connection error:', err));
+// ======================
+// DATABASE CONNECTION
+// ======================
+const MONGODB_URI =
+  process.env.MONGODB_URI;
 
-// Initialize Socket.IO
+mongoose
+  .connect(MONGODB_URI)
+  .then(() => console.log('✅ Connected to MongoDB'))
+  .catch((err) => console.error('❌ MongoDB connection error:', err));
+
+// ======================
+// SOCKET.IO INIT
+// ======================
 initializeSocket(server);
 
-// Routes
+// ======================
+// ROUTES
+// ======================
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
@@ -49,13 +72,19 @@ app.use('/api/stafflogs', staffRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/support', supportRoutes);
 
-// Basic route for testing
+// ======================
+// TEST ROUTE
+// ======================
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!' });
 });
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => { // Change app.listen to server.listen
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Test the server: http://localhost:${PORT}/api/test`);
+// ======================
+// SERVER START
+// ======================
+const PORT = process.env.PORT;
+
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🧪 Test API: http://localhost:${PORT}/api/test`);
 });
