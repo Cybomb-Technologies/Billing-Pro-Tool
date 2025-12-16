@@ -10,6 +10,7 @@
     "src-start": "vite --port 5173",
     "electron-start": "wait-on http://localhost:5173 && electron ./electron/main.cjs",
     "start": "concurrently \"npm:src-start\" \"npm:electron-start\"",
+     "build": "vite build",
     "build-frontend": "vite build",
     "dist": "npm run build-frontend && electron-builder",
     "dist:clientA": "BRAND=clientA npm run dist",
