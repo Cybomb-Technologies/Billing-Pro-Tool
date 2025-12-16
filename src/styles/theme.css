@@ -1,0 +1,121 @@
+:root {
+  /* --- Color Palette: Modern Blue/Indigo Brand --- */
+  --primary-color: #4361ee;
+  --primary-hover: #3a56d4;
+  --primary-light: #eef2ff;
+  
+  --secondary-color: #3f37c9;
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --danger-color: #ef4444;
+  --info-color: #3b82f6;
+
+  /* --- Backgrounds & Surfaces --- */
+  --bg-body: #f3f4f6;
+  --bg-surface: #ffffff;
+  --bg-sidebar: #111827; /* Dark sidebar by default */
+  
+  /* --- Typography --- */
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --text-on-dark: #f9fafb;
+
+  /* --- Borders & Shadows --- */
+  --border-color: #e5e7eb;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+  /* --- Sidebar Specifics --- */
+  --sidebar-width: 260px;
+  --sidebar-item-hover: rgba(255, 255, 255, 0.1);
+  --sidebar-item-active: var(--primary-color);
+}
+
+/* Dark Mode Variables (Activated via .dark-mode class on body) */
+body.dark-mode {
+  --bg-body: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-sidebar: #020617;
+  
+  --text-primary: #f9fafb;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  
+  --border-color: #334155;
+}
+
+/* --- Utility Classes --- */
+.bg-glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.card-hover {
+  transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* --- Bootstrap Overrides --- */
+.bg-light {
+    background-color: var(--bg-body) !important;
+}
+
+.bg-white {
+    background-color: var(--bg-surface) !important;
+    color: var(--text-primary);
+}
+
+.card {
+    background-color: var(--bg-surface);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.text-muted {
+    color: var(--text-muted) !important;
+}
+
+.text-primary {
+    color: var(--primary-color) !important;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-primary);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+.dark-mode ::-webkit-scrollbar-thumb {
+    background: #475569;
+}

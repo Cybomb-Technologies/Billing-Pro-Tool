@@ -65,28 +65,37 @@ const Navigation = ({ children }) => {
       {/* Sidebar is only rendered if user is logged in */}
       {user && (
         <div
-          className="bg-dark text-white vh-100 position-fixed"
-          style={{ width: "260px", zIndex: 1000 }}
+          className="vh-100 position-fixed d-flex flex-column"
+          style={{ 
+            width: "var(--sidebar-width)", 
+            zIndex: 1000,
+            backgroundColor: "var(--bg-sidebar)",
+            borderRight: "1px solid var(--border-color)"
+          }}
         >
           {/* Sidebar Header */}
-          <div className="p-4 border-bottom border-secondary">
+          <div className="p-4" style={{borderBottom: "1px solid rgba(255,255,255,0.05)"}}>
             <div className="d-flex align-items-center">
               <div
-                className="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3"
-                style={{ width: "40px", height: "40px" }}
+                className="rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm"
+                style={{ 
+                  width: "40px", 
+                  height: "40px",
+                  background: "linear-gradient(135deg, var(--primary-color), var(--secondary-color))" 
+                }}
               >
                 <Building size={20} className="text-white" />
               </div>
               <div>
-                <h5 className="mb-0 fw-bold text-white">Billing Pro</h5>
-                <small className="text-white-emphasis">Business Suite</small>
+                <h5 className="mb-0 fw-bold" style={{color: "var(--text-on-dark)"}}>Billing Pro</h5>
+                <small style={{color: "var(--text-muted)"}}>Business Suite</small>
               </div>
             </div>
           </div>
 
           {/* Navigation Menu */}
-          <nav className="p-3">
-            <div className="d-flex flex-column gap-1">
+          <nav className="p-3 flex-grow-1 overflow-auto custom-scrollbar">
+            <div className="d-flex flex-column gap-2">
               {filteredMenuItems.map((item) => {
                 const IconComponent = item.icon;
                 const active = isActiveLink(item.path);
@@ -95,16 +104,18 @@ const Navigation = ({ children }) => {
                     key={item.path}
                     to={item.path}
                     className={`d-flex align-items-center gap-3 text-decoration-none p-3 rounded-3 transition-all ${
-                      active
-                        ? "bg-primary text-white shadow-sm"
-                        : "text-white-emphasis hover-custom"
+                      active ? "shadow-sm" : "hover-custom"
                     }`}
+                    style={{
+                      backgroundColor: active ? "var(--primary-color)" : "transparent",
+                      color: active ? "#fff" : "var(--text-secondary)"
+                    }}
                   >
                     <IconComponent
                       size={20}
-                      className={active ? "text-white" : "text-white-emphasis"}
+                      style={{ color: active ? "#fff" : "var(--text-muted)" }}
                     />
-                    <span className="fw-medium">{item.label}</span>
+                    <span className="fw-medium" style={{color: active ? "#fff" : "var(--text-on-dark)"}}>{item.label}</span>
                     {active && (
                       <ChevronRight size={16} className="ms-auto text-white" />
                     )}
@@ -115,27 +126,32 @@ const Navigation = ({ children }) => {
           </nav>
 
           {/* Sidebar Footer */}
-          <div className="position-absolute bottom-0 start-0 end-0 p-3 border-top border-secondary">
+          <div className="p-3 mt-auto" style={{borderTop: "1px solid rgba(255,255,255,0.05)"}}>
             <div className="d-flex align-items-center justify-content-between">
               <div className="d-flex align-items-center">
                 <div
-                  className="bg-success rounded-circle d-flex align-items-center justify-content-center me-3"
-                  style={{ width: "36px", height: "36px" }}
+                  className="rounded-circle d-flex align-items-center justify-content-center me-3"
+                  style={{ width: "36px", height: "36px", backgroundColor: "var(--success-color)" }}
                 >
                   <User size={16} className="text-white" />
                 </div>
                 <div>
-                  <div className="text-white fw-semibold small">
+                  <div className="fw-semibold small" style={{color: "var(--text-on-dark)"}}>
                     {user.username}
                   </div>
-                  <div className="text-white-emphasis small text-capitalize">
+                  <div className="small text-capitalize" style={{color: "var(--text-muted)"}}>
                     {user.role}
                   </div>
                 </div>
               </div>
               <button
                 onClick={handleLogout}
-                className="btn btn-outline-light btn-sm d-flex align-items-center"
+                className="btn btn-sm d-flex align-items-center justify-content-center p-2"
+                style={{
+                  background: "rgba(255,255,255,0.05)", 
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  color: "var(--text-muted)"
+                }}
                 title="Logout"
               >
                 <LogOut size={16} />
@@ -148,9 +164,9 @@ const Navigation = ({ children }) => {
       {/* Main content */}
       <div
         className="flex-grow-1"
-        style={{ marginLeft: user ? "260px" : "0" }}
+        style={{ marginLeft: user ? "var(--sidebar-width)" : "0" }}
       >
-        <div className="bg-light min-vh-100">{children}</div>
+        <div className="min-vh-100" style={{backgroundColor: "var(--bg-body)"}}>{children}</div>
       </div>
 
       {/* Custom CSS for hover effects */}

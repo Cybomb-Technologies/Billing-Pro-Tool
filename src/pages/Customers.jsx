@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Button, Row, Col, Table, Modal, Form, Badge, Alert, InputGroup, Dropdown, Spinner } from 'react-bootstrap';
 import { Plus, Search, Edit, Trash2, MoreVertical, Download, User, Phone, Mail, MapPin, Building } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import { useAuth } from '../context/AuthContext'; // FIX: Adjusted import path
 
 const Customers = () => {
@@ -27,10 +28,12 @@ const Customers = () => {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:5000/api/customers', {
+      const response = await axios.get(`${API_BASE_URL}/customers`, {
         headers: getAuthHeaders()
       });
-      setCustomers(response.data);
+      // Handle both new paginated object and potential old array format ensuring backward compatibility during dev
+      const customersData = response.data.customers || response.data || [];
+      setCustomers(customersData);
     } catch (error) {
       console.error('Error fetching customers:', error);
       showAlert('Error fetching customers', 'danger');
@@ -50,14 +53,14 @@ const Customers = () => {
 
       if (formData._id) {
         await axios.put(
-          `http://localhost:5000/api/customers/${formData._id}`,
+          `${API_BASE_URL}/customers/${formData._id}`,
           formData,
           { headers: getAuthHeaders() }
         );
         showAlert('Customer updated successfully!', 'success');
       } else {
         await axios.post(
-          'http://localhost:5000/api/customers',
+          `${API_BASE_URL}/customers`,
           formData,
           { headers: getAuthHeaders() }
         );
@@ -79,7 +82,7 @@ const Customers = () => {
     if (!window.confirm('Are you sure you want to delete this customer?')) return;
 
     try {
-      await axios.delete(`http://localhost:5000/api/customers/${customerId}`, {
+      await axios.delete(`${API_BASE_URL}/customers/${customerId}`, {
         headers: getAuthHeaders()
       });
       await fetchCustomers();
@@ -114,7 +117,7 @@ const Customers = () => {
 
   const handleExportCSV = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/customers/export/csv', {
+      const response = await axios.get(`${API_BASE_URL}/customers/export/csv`, {
         responseType: 'blob',
         headers: getAuthHeaders()
       });

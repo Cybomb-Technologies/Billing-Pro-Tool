@@ -51,14 +51,16 @@ const checkDuplicateCustomer = async (phone, email, businessName, excludeId = nu
 // Get all customers with search and filtering (Updated to search businessName)
 router.get('/', auth, async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, page = 1, limit = 100 } = req.query; // Default high limit for backward compatibility if page not passed? No, better explicit.
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
     let filter = {};
 
     if (search) {
       filter = {
         $or: [
           { name: { $regex: search, $options: 'i' } },
-          { businessName: { $regex: search, $options: 'i' } }, // <-- SEARCH FIELD REMAINS
+          { businessName: { $regex: search, $options: 'i' } }, 
           { phone: { $regex: search, $options: 'i' } },
           { email: { $regex: search, $options: 'i' } },
           { gstNumber: { $regex: search, $options: 'i' } }
@@ -66,15 +68,26 @@ router.get('/', auth, async (req, res) => {
       };
     }
 
-    const customers = await Customer.find(filter).sort({ createdAt: -1 });
+    // Execute query with pagination
+    const [customers, totalItems] = await Promise.all([
+        Customer.find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)),
+        Customer.countDocuments(filter)
+    ]);
     
     // NOTE: Invoice count remains temporary unless you implement aggregation
     const customersWithCounts = customers.map(customer => ({
       ...customer.toObject(),
       invoiceCount: 0
     }));
-    
-    res.json(customersWithCounts);
+
+    // Return object structure
+    res.json({
+        customers: customersWithCounts,
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: parseInt(page)
+    });
+
   } catch (error) {
     console.error('Error fetching customers:', error);
     res.status(500).json({ message: error.message });

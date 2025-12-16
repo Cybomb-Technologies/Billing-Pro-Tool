@@ -3,6 +3,7 @@ import { Card, Table, Row, Col, Button, Form, Modal, Badge, Spinner, Alert } fro
 import { Plus, Clock, List, CheckCircle, User, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext'; // Corrected path assumption
+import { API_BASE_URL } from '../config';
 
 // --- Initial Log Structure ---
 const initialLogState = {
@@ -54,7 +55,7 @@ const StaffLog = () => {
         
         try {
             // NOTE: Uses the endpoint you set up in the backend
-            const response = await axios.get(`http://localhost:5000/api/stafflogs`, {
+            const response = await axios.get(`${API_BASE_URL}/stafflogs`, {
                 headers: getAuthHeaders()
             });
             
@@ -89,7 +90,7 @@ const StaffLog = () => {
         };
 
         try {
-            const response = await axios.post(`http://localhost:5000/api/stafflogs`, logPayload, {
+            const response = await axios.post(`${API_BASE_URL}/stafflogs`, logPayload, {
                 headers: getAuthHeaders()
             });
             

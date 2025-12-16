@@ -1,162 +1,167 @@
 import React, { useEffect, useState } from "react";
 import { Tab, Nav, Row, Col, Card, Form, Button, Table, Alert, Spinner, InputGroup } from "react-bootstrap";
 import axios from "axios";
+import { API_BASE_URL, SERVER_URL } from '../config';
 import { 
     Briefcase, DollarSign, Users, Trash, UserPlus, Save, 
-    Landmark, Globe, CreditCard // FIX: Replaced 'Bank' with 'Landmark' for Bank Details
+    Landmark, Globe, CreditCard, UploadCloud, Moon, Sun, Monitor 
 } from 'lucide-react';
 
-// Base URL for all settings API calls (assuming a centralized settings route)
-const SETTINGS_API_BASE_URL = "http://localhost:5000/api/settings";
-const USERS_API_BASE_URL = "http://localhost:5000/api/users";
-
-const CURRENCIES = [
-    { code: 'INR', name: 'Indian Rupee (₹)' },
-    { code: 'USD', name: 'US Dollar ($)' },
-    { code: 'EUR', name: 'Euro (€)' },
-    { code: 'GBP', name: 'British Pound (£)' },
-    { code: 'CAD', name: 'Canadian Dollar (C$)' },
-    { code: 'AUD', name: 'Australian Dollar (A$)' },
-];
-
-const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-};
+// ... (existing constants)
 
 const Settings = () => {
   const [users, setUsers] = useState([]);
   const [form, setForm] = useState({ username: "", email: "", password: "", role: "staff" });
   
-  // State for Settings Tabs
-  const [company, setCompany] = useState({ 
-    name: "", 
-    email: "", 
-    phone: "", 
-    address: "", 
-    logo: "",
-    branchLocation: "", 
-    gstIn: "", 
-    currency: "INR" 
-  });
-  
-  const [payment, setPayment] = useState({ 
-    bankName: "State Bank of India", 
-    accountNumber: "", 
-    ifsc: "", 
-    paypalEmail: "",
-    beneficiaryName: "",
-    upiId: "",
-    swiftCode: "",
-    terms: "Payment due within 30 days."
+  // Dark Mode State
+  const [darkMode, setDarkMode] = useState(() => {
+    return localStorage.getItem('theme') === 'dark';
   });
 
+  useEffect(() => {
+    if (darkMode) {
+      document.body.classList.add('dark-mode');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.body.classList.remove('dark-mode');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
+
+  // --- STATES ---
   const [loading, setLoading] = useState(true);
-  const [alert, setAlert] = useState({ show: false, message: '', type: '' });
+  const [company, setCompany] = useState({
+    name: "", gstIn: "", email: "", phone: "", 
+    address: "", branchLocation: "", currency: "INR", logo: ""
+  });
+  const [payment, setPayment] = useState({
+    beneficiaryName: "", bankName: "", accountNumber: "", 
+    ifsc: "", upiId: "", paypalEmail: "", terms: ""
+  });
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  // Currencies
+  const CURRENCIES = [
+    { code: "INR", name: "Indian Rupee (₹)" },
+    { code: "USD", name: "US Dollar ($)" },
+    { code: "EUR", name: "Euro (€)" },
+    { code: "GBP", name: "British Pound (£)" },
+    { code: "AUD", name: "Australian Dollar (A$)" },
+    { code: "CAD", name: "Canadian Dollar (C$)" }
+  ];
 
-  const showAlert = (message, type = 'success') => {
-    setAlert({ show: true, message, type });
-    setTimeout(() => setAlert({ show: false, message: '', type: '' }), 4000);
+  // --- FETCH SETTINGS ---
+  const fetchSettings = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      const res = await axios.get(`${API_BASE_URL}/settings`, { headers });
+      if (res.data) {
+        if (res.data.company) setCompany(prev => ({ ...prev, ...res.data.company }));
+        if (res.data.payment) setPayment(prev => ({ ...prev, ...res.data.payment }));
+      }
+      
+      // Fetch users
+      const usersRes = await axios.get(`${API_BASE_URL}/users`, { headers });
+      setUsers(usersRes.data);
+      
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      // Optional: setAlert({ type: 'danger', message: 'Failed to load settings' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    fetchUsers();
     fetchSettings();
   }, []);
 
-  // --- Core API Fetching Functions ---
-
-  const fetchUsers = async () => {
+  // --- HANDLERS ---
+  const handleSave = async (e, type, data) => {
+    e.preventDefault();
     try {
-      const res = await axios.get(USERS_API_BASE_URL, { headers: getAuthHeaders() });
-      setUsers(res.data);
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.put(`${API_BASE_URL}/settings`, { [type]: data }, { headers });
+      alert(`${type === 'company' ? 'Company Info' : 'Payment Settings'} saved successfully!`);
+      // Update global context if needed? For now just local.
     } catch (error) {
-      console.error("Error fetching users:", error);
+      console.error("Error saving settings:", error);
+      alert("Failed to save settings.");
     }
   };
 
-  const fetchSettings = async () => {
-    setLoading(true);
+  const handleFileUpload = async () => {
+    if (!selectedFile) return;
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('logo', selectedFile);
     try {
-        const res = await axios.get(SETTINGS_API_BASE_URL, { headers: getAuthHeaders() });
-        const data = res.data;
-
-        // Apply fetched data, ensuring fallbacks for new fields
-        if (data.company) setCompany(prev => ({ 
-            ...prev, 
-            ...data.company,
-            branchLocation: data.company.branchLocation || '',
-            gstIn: data.company.gstIn || '',
-            currency: data.company.currency || 'INR',
-        }));
-        
-        if (data.payment) setPayment(prev => ({ 
-            ...prev, 
-            ...data.payment,
-            beneficiaryName: data.payment.beneficiaryName || '',
-            upiId: data.payment.upiId || '',
-            swiftCode: data.payment.swiftCode || '',
-            terms: data.payment.terms || 'Payment due within 30 days.',
-        }));
-
+        const token = localStorage.getItem('token');
+        const res = await axios.post(`${API_BASE_URL}/upload/logo`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+                Authorization: `Bearer ${token}`
+            }
+        });
+        setCompany(prev => ({ ...prev, logo: res.data.logoPath }));
+        alert('Logo uploaded successfully!');
     } catch (error) {
-        console.error("Error fetching settings:", error);
-        showAlert('Failed to load saved settings.', 'danger');
+        console.error('Logo upload failed:', error);
+        alert('Failed to upload logo.');
     } finally {
-        setLoading(false);
+        setIsUploading(false);
     }
   };
-
-  // --- User Management Functions ---
 
   const handleAddUser = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(USERS_API_BASE_URL, form, { headers: getAuthHeaders() });
-      setForm({ username: "", email: "", password: "", role: "staff" });
-      fetchUsers();
-      showAlert('New user added successfully!', 'success');
+        const token = localStorage.getItem('token');
+        await axios.post(`${API_BASE_URL}/users`, form, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        alert('User added successfully');
+        setForm({ username: "", email: "", password: "", role: "staff" });
+        fetchSettings(); // Refresh list
     } catch (error) {
-      console.error("Error adding user:", error.response?.data || error);
-      showAlert(`Error adding user: ${error.response?.data?.message || 'Check server logs.'}`, 'danger');
+        console.error(error);
+        alert(error.response?.data?.message || 'Failed to add user');
     }
   };
 
   const handleDeleteUser = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
-    try {
-      await axios.delete(`${USERS_API_BASE_URL}/${id}`, { headers: getAuthHeaders() });
-      fetchUsers();
-      showAlert('User deleted successfully.', 'success');
-    } catch (error) {
-      console.error("Error deleting user:", error.response?.data || error);
-      showAlert('Error deleting user.', 'danger');
-    }
-  };
-
-  // --- Generic Save Function ---
-
-  const handleSave = async (e, category, dataToSave) => {
-    e.preventDefault();
-    try {
-        // ASSUMPTION: Backend uses PATCH or POST /api/settings/:category to update
-        await axios.patch(`${SETTINGS_API_BASE_URL}/${category}`, dataToSave, { headers: getAuthHeaders() });
-        showAlert(`${category} settings saved successfully!`, 'success');
-    } catch (error) {
-        console.error(`Error saving ${category} settings:`, error);
-        showAlert(`Failed to save ${category} settings.`, 'danger');
-    }
+      if(!window.confirm("Are you sure?")) return;
+      try {
+          const token = localStorage.getItem('token');
+          await axios.delete(`${API_BASE_URL}/users/${id}`, {
+              headers: { Authorization: `Bearer ${token}` }
+          });
+          setUsers(users.filter(u => u._id !== id));
+      } catch (error) {
+          console.error(error);
+          alert('Failed to delete user');
+      }
   };
 
   return (
     <div className="p-4 d-flex flex-column min-vh-100">
-      {alert.show && (
-        <Alert variant={alert.type} className="position-fixed top-0 end-0 m-3" style={{ zIndex: 1050 }} onClose={() => setAlert({ show: false, message: '', type: '' })} dismissible>
-          {alert.message}
-        </Alert>
-      )}
+      {/* ... (existing alert) */}
       
-      <h2 className="mb-4">Settings</h2>
+      <div className="d-flex align-items-center justify-content-between mb-4">
+        <h2 className="mb-0">Settings</h2>
+        <Button 
+            variant={darkMode ? "outline-light" : "outline-dark"}
+            onClick={() => setDarkMode(!darkMode)}
+            className="d-flex align-items-center"
+        >
+            {darkMode ? <Sun size={18} className="me-2" /> : <Moon size={18} className="me-2" />}
+            {darkMode ? "Light Mode" : "Dark Mode"}
+        </Button>
+      </div>
       
       <div className="flex-grow-1"> {/* Content Wrapper */}
         {loading ? (
@@ -167,15 +172,15 @@ const Settings = () => {
           <Tab.Container defaultActiveKey="company">
             <Row>
               <Col sm={3}>
-                <Nav variant="pills" className="flex-column">
+                <Nav variant="pills" className="flex-column gap-1">
                   <Nav.Item>
-                    <Nav.Link eventKey="company"><Briefcase size={18} className="me-2" /> Company Info</Nav.Link>
+                    <Nav.Link eventKey="company" className="d-flex align-items-center"><Briefcase size={18} className="me-2" /> Company Info</Nav.Link>
                   </Nav.Item>
                   <Nav.Item>
-                    <Nav.Link eventKey="payment"><DollarSign size={18} className="me-2" /> Payment Settings</Nav.Link>
+                    <Nav.Link eventKey="payment" className="d-flex align-items-center"><DollarSign size={18} className="me-2" /> Payment Settings</Nav.Link>
                   </Nav.Item>
                   <Nav.Item>
-                    <Nav.Link eventKey="users"><Users size={18} className="me-2" /> Manage Users</Nav.Link>
+                    <Nav.Link eventKey="users" className="d-flex align-items-center"><Users size={18} className="me-2" /> Manage Users</Nav.Link>
                   </Nav.Item>
                 </Nav>
               </Col>
@@ -201,6 +206,46 @@ const Settings = () => {
                               </Form.Group>
                             </Col>
                           </Row>
+
+                          {/* START LOGO UPLOAD SECTION */}
+                          <Form.Group className="mb-3">
+                            <Form.Label>Company Logo (JPG/PNG)</Form.Label>
+                            {/* Logo Preview */}
+                            {company.logo && (
+                                <div className="mb-2">
+                                    <p className="text-muted small mb-1">Current Logo Path: `{company.logo}`</p>
+                                    {/* Attempt to display image from path/URL */}
+                                    <img src={`${SERVER_URL}${company.logo}`} alt="Company Logo Preview" style={{ maxWidth: '150px', maxHeight: '50px', border: '1px solid #ddd', padding: '5px' }} />
+                                </div>
+                            )}
+
+                            <InputGroup>
+                                <Form.Control
+                                    type="file"
+                                    accept=".jpg,.jpeg,.png"
+                                    onChange={(e) => setSelectedFile(e.target.files[0])}
+                                />
+                                <Button 
+                                    variant="outline-primary" 
+                                    onClick={handleFileUpload} 
+                                    disabled={!selectedFile || isUploading}
+                                >
+                                    {isUploading ? (
+                                        <>
+                                            <Spinner animation="border" size="sm" className="me-2" /> Uploading...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <UploadCloud size={18} className="me-1" /> Upload File
+                                        </>
+                                    )}
+                                </Button>
+                            </InputGroup>
+                            <Form.Text className="text-danger">
+                                IMPORTANT: Click 'Upload File' after selection, then click 'Save Company Info'.
+                            </Form.Text>
+                          </Form.Group>
+                          {/* END LOGO UPLOAD SECTION */}
 
                           <Row>
                             <Col md={6}>
@@ -280,7 +325,7 @@ const Settings = () => {
                             <Col md={6}>
                               <Form.Group className="mb-3">
                                 <Form.Label>IFSC / Swift Code</Form.Label>
-                                <Form.Control value={payment.ifsc} onChange={(e) => setPayment({ ...payment, ifsc: e.target.value })} placeholder="e.g., SBIN0001234 (IFSC) or CHASUS33 (SWIFT)" />
+                                <Form.Control value={payment.ifsc} onChange={(e) => setPayment({ ...payment.ifsc, ifsc: e.target.value })} placeholder="e.g., SBIN0001234 (IFSC) or CHASUS33 (SWIFT)" />
                               </Form.Group>
                             </Col>
                           </Row>
