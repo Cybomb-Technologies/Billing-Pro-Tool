@@ -8,9 +8,10 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext'; // FIX: Adjusted import path
+import { API_BASE_URL, SERVER_URL } from '../../config';
 
 // Base URL for settings API call
-const SETTINGS_API_BASE_URL = "http://localhost:5000/api/settings";
+const SETTINGS_API_BASE_URL = `${API_BASE_URL}/settings`;
 
 // =========================================================================
 // 1. EXTRACTED & MEMOIZED INVOICE FORM COMPONENT
@@ -20,7 +21,8 @@ const InvoiceForm = React.memo(function InvoiceForm({
     isEdit = false, onSubmit, onCancel, submitButtonText = "Create Invoice",
     // Props passed directly from InvoiceFrontend state/handlers
     customerSearch, setCustomerSearch, handleCustomerSearch,
-    searchedCustomer, setShowCustomerForm, handleLocalCustomerPayloadChange,
+    searchedCustomer, // Removed setShowCustomerForm
+    handleLocalCustomerPayloadChange,
     localCustomerPayload, handleCreateCustomer,
     dueDate, setDueDate, paymentType, setPaymentType, paymentTypes,
     addItem, removeItem, updateItem, invoiceItems,
@@ -29,70 +31,86 @@ const InvoiceForm = React.memo(function InvoiceForm({
     selectedCustomer 
 }) {
 
+  // Logic to show the New Customer Form/Card: 
+  // Show if a search was performed (customerSearch has value) AND 
+  // no customer was found (searchedCustomer is null/falsey).
+  const shouldShowCustomerCard = customerSearch && (searchedCustomer === null || (searchedCustomer && !selectedCustomer));
+
+
   return (
     <Form>
-      <Row className="mb-3">
-        <Col md={6}>
-          <Form.Group>
-            {/* UPDATED LABEL */}
-            <Form.Label>Customer Mobile or Business Name *</Form.Label> 
-            <InputGroup>
-              <Form.Control 
-                type="text" // Changed to text to accept business names
-                placeholder="Enter phone or business name" 
-                value={customerSearch} 
-                onChange={(e) => setCustomerSearch(e.target.value)} 
-                onKeyPress={(e) => { if (e.key === 'Enter') handleCustomerSearch(); }}
-                aria-describedby="customerSearchHelp"
-              />
-              <Button variant="primary" onClick={handleCustomerSearch} disabled={!customerSearch.trim()}>
-                <Search size={16} /> Search
-              </Button>
-            </InputGroup>
-            <Form.Text id="customerSearchHelp" className="text-muted">
-              Enter phone number (primary) or full business name.
-            </Form.Text>
-          </Form.Group>
-        </Col>
-        <Col md={6}>
-          <Form.Group>
-            <Form.Label>Payment Type *</Form.Label>
-            <Form.Select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} required>
-              {paymentTypes.map(type => (
-                <option key={type.value} value={type.value}>{type.label}</option>
-              ))}
-            </Form.Select>
-          </Form.Group>
-        </Col>
-      </Row>
+      {/* SECTION 1: Customer and Payment Info */}
+      <Card className="shadow-sm mb-4">
+        <Card.Header className="bg-light fw-bold">Customer & Payment Details</Card.Header>
+        <Card.Body>
+          <Row>
+            <Col md={6} className="border-end pe-md-4">
+              <Form.Group>
+                <Form.Label className="fw-bold">Customer Mobile or Business Name *</Form.Label> 
+                <InputGroup>
+                  <Form.Control 
+                    type="text" 
+                    placeholder="Enter phone or business name" 
+                    value={customerSearch} 
+                    onChange={(e) => setCustomerSearch(e.target.value)} 
+                    onKeyPress={(e) => { if (e.key === 'Enter') handleCustomerSearch(); }}
+                    aria-describedby="customerSearchHelp"
+                  />
+                  <Button variant="primary" onClick={handleCustomerSearch} disabled={!customerSearch.trim()}>
+                    <Search size={16} /> Search
+                  </Button>
+                </InputGroup>
+                <Form.Text id="customerSearchHelp" className="text-muted">
+                  Enter phone number (primary) or full business name.
+                </Form.Text>
+                {/* Visual feedback for selected customer */}
+                {selectedCustomer && searchedCustomer && (
+                     <Alert variant="success" className="p-2 mt-2 mb-0">
+                         <UserIcon size={16} className="me-2"/>
+                         **Customer Selected:** {searchedCustomer.businessName || searchedCustomer.name}
+                     </Alert>
+                 )}
+              </Form.Group>
+            </Col>
+            <Col md={6} className="ps-md-4">
+              <Form.Group>
+                <Form.Label className="fw-bold">Payment Type *</Form.Label>
+                <Form.Select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} required>
+                  {paymentTypes.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+               {/* <Form.Group className="mt-3">
+                <Form.Label className="fw-bold">Due Date *</Form.Label>
+                <Form.Control 
+                  type="date" 
+                  value={dueDate} 
+                  onChange={(e) => setDueDate(e.target.value)} 
+                  required 
+                />
+              </Form.Group> */}
+            </Col>
+          </Row>
+        </Card.Body>
+      </Card>
 
-      {/* Customer Found / Create */}
-      {(customerSearch && !searchedCustomer) || (searchedCustomer === null && customerSearch && !isEdit) ? (
-        <Row className="mb-3">
-          <Col md={12}>
-            <Card className="border shadow-sm">
-              <Card.Body>
+
+      {/* Customer Found / Create Section (Conditional on search and no customer found) */}
+      {shouldShowCustomerCard ? (
+        <Card className="border shadow-sm mb-4">
+          <Card.Header className="bg-warning-subtle fw-bold text-dark">
+             New Customer: Please Complete Details
+          </Card.Header>
+          <Card.Body>
                 <div className="d-flex justify-content-between align-items-center mb-3">
-                  <h6 className="mb-0 fw-bold">{searchedCustomer ? 'Customer Found (Selected)' : 'Add New Customer Details'}</h6>
-                  <Button variant="link" size="sm" onClick={() => { setShowCustomerForm(false); setCustomerSearch(''); /* setSearchedCustomer(null) is handled by parent */ }}>
-                    <X size={16} /> Clear
+                  <h6 className="mb-0 fw-bold">Add New Customer Details</h6>
+                  {/* Note: Clearing the search input will naturally hide this card */}
+                  <Button variant="link" size="sm" onClick={() => { setCustomerSearch(''); /* clearing the search hides the card */ }}>
+                    <X size={16} /> Clear Search
                   </Button>
                 </div>
 
-                {searchedCustomer ? (
-                  <div className="p-3 bg-light rounded border-primary border">
-                    <div className="d-flex align-items-center">
-                      <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3" style={{ width: '40px', height: '40px' }}>
-                        <span className="text-white fw-bold">{searchedCustomer.name?.charAt(0)?.toUpperCase() || 'C'}</span>
-                      </div>
-                      <div>
-                        {searchedCustomer.businessName && <div className="fw-semibold"><Building size={14} className='me-1' />{searchedCustomer.businessName}</div>}
-                        <div className="fw-semibold">{searchedCustomer.name}</div>
-                        <div className="text-muted">{searchedCustomer.phone}</div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
                   <Row>
                     <Col md={6}>
                       <Form.Group className="mb-2">
@@ -153,33 +171,17 @@ const InvoiceForm = React.memo(function InvoiceForm({
                       </Button>
                     </Col>
                   </Row>
-                )}
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
+          </Card.Body>
+        </Card>
       ) : null}
-
-      {/* Due Date */}
-      <Row className="mb-3">
-        <Col md={6}>
-          <Form.Group>
-            <Form.Label>Due Date *</Form.Label>
-            <Form.Control 
-              type="date" 
-              value={dueDate} 
-              onChange={(e) => setDueDate(e.target.value)} 
-              required 
-            />
-          </Form.Group>
-        </Col>
-      </Row>
 
       {/* Invoice Items */}
       <Form.Group className="mb-3">
         <div className="d-flex justify-content-between align-items-center mb-2">
-          <Form.Label className="mb-0 fw-bold">Invoice Items *</Form.Label>
-          <Button variant="outline-success" size="sm" onClick={addItem}>
+          <Form.Label className="mb-0 fw-bold fs-5 text-dark">
+             <Box size={20} className='me-2'/>Invoice Items *
+          </Form.Label>
+          <Button variant="success" size="sm" onClick={addItem}>
             <Plus size={16} className="me-1" />Add Item
           </Button>
         </div>
@@ -312,7 +314,7 @@ const InvoiceForm = React.memo(function InvoiceForm({
           <Card className="border shadow-sm">
             <Card.Body>
               <div className="text-center text-muted py-4">
-                <Plus size={32} className="mb-2" />
+                <FileText size={32} className="mb-2" />
                 <div>Add items to this invoice</div>
                 <small className="text-muted">Click "Add Item" to start</small>
               </div>
@@ -326,19 +328,19 @@ const InvoiceForm = React.memo(function InvoiceForm({
         <Row className="mb-3">
           <Col md={6}>
             <Form.Group>
-              <Form.Label>Notes</Form.Label>
+              <Form.Label className="fw-bold">Notes</Form.Label>
               <Form.Control 
                 as="textarea" 
-                rows={3} 
-                placeholder="Additional notes..." 
+                rows={4} 
+                placeholder="Additional notes for the customer..." 
                 value={notes} 
                 onChange={(e) => setNotes(e.target.value)} 
               />
             </Form.Group>
           </Col>
           <Col md={6}>
-            <Card className="border shadow-sm">
-              <Card.Header className="bg-light"><h6 className="mb-0 fw-bold">Invoice Summary</h6></Card.Header>
+            <Card className="border shadow-sm h-100">
+              <Card.Header className="bg-primary text-white"><h6 className="mb-0 fw-bold">Invoice Summary</h6></Card.Header>
               <Card.Body>
                 <div className="d-flex justify-content-between mb-2">
                   <span>Subtotal:</span>
@@ -356,9 +358,9 @@ const InvoiceForm = React.memo(function InvoiceForm({
                     </div>
                   </>
                 ) : null}
-                <hr />
-                <div className="d-flex justify-content-between fw-bold fs-5 text-success">
-                  <span>Total:</span>
+                <hr className="my-2"/>
+                <div className="d-flex justify-content-between fw-bold fs-5 text-primary">
+                  <span>TOTAL AMOUNT:</span>
                   <span>{formatCurrency(totals.total)}</span>
                 </div>
               </Card.Body>
@@ -375,7 +377,7 @@ const InvoiceForm = React.memo(function InvoiceForm({
           disabled={
             !selectedCustomer || 
             invoiceItems.length === 0 || 
-            !dueDate ||
+            // !dueDate ||
             invoiceItems.some(item => Number(item.quantity) > getProductStock(item.product))
           }
         >
@@ -396,7 +398,7 @@ const InvoiceForm = React.memo(function InvoiceForm({
  */
 export default function InvoiceFrontend(props) {
   const {
-    invoices, customers, products, settings, // <-- IMPORT SETTINGS
+    invoices, customers, products, settings, 
     // form state
     selectedCustomer, setSelectedCustomer,
     invoiceItems, setInvoiceItems,
@@ -466,7 +468,8 @@ export default function InvoiceFrontend(props) {
   const [currentInvoice, setCurrentInvoice] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState(null);
-  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  // 🐛 FIX: Removed unused showCustomerForm state variable as logic is driven by searchedCustomer
+  
   const [isLoading, setIsLoading] = useState(false); 
 
   // UPDATED: Added businessName to local payload
@@ -570,7 +573,7 @@ export default function InvoiceFrontend(props) {
           address: found.address || { street: '', city: '', state: '', zipCode: '' }
         });
         showAlert('Customer found!', 'success');
-        setShowCustomerForm(false);
+        // 🐛 Removed setShowCustomerForm(false) - logic now depends only on searchedCustomer state
       } else {
         setSearchedCustomer(null);
         setSelectedCustomer(null);
@@ -581,7 +584,7 @@ export default function InvoiceFrontend(props) {
             address: { street: '', city: '', state: '', zipCode: '' } 
         }));
         showAlert('Customer not found. Fill details and create new customer.', 'info');
-        setShowCustomerForm(true);
+        // 🐛 Removed setShowCustomerForm(true)
       }
     } catch (error) {
       showAlert('Error searching for customer', 'danger');
@@ -597,7 +600,7 @@ export default function InvoiceFrontend(props) {
       const created = await createCustomer(localCustomerPayload);
       setSelectedCustomer(created._id);
       setSearchedCustomer(created);
-      setShowCustomerForm(false);
+      // 🐛 Removed setShowCustomerForm(false)
       setCustomerSearch(created.phone);
     } catch (err) {
         // Handled by backend hook
@@ -631,7 +634,7 @@ export default function InvoiceFrontend(props) {
     setPaymentType('cash');
     setCustomerSearch('');
     setSearchedCustomer(null);
-    setShowCustomerForm(false);
+    // 🐛 Removed setShowCustomerForm(false)
     // UPDATED: Reset businessName as well
     setLocalCustomerPayload({ name: '', businessName: '', email: '', phone: '', address: { street: '', city: '', state: '', zipCode: '' } });
   }, [resetForm, setInvoiceItems, setTaxDetails, setNotes, setDueDate, setPaymentType, setSelectedCustomer]);
@@ -753,10 +756,17 @@ const handleEditInvoice = useCallback((invoice) => {
     await deleteInvoice(invoiceId);
   }, [deleteInvoice]);
 
+// 🟢 UPDATED: LOGO INTEGRATION IN PRINT/PDF HANDLER
   const handleDownloadPDF = useCallback((invoiceId) => {
       const invoice = invoices.find(inv => inv._id === invoiceId);
       const customer = customers.find(c => c._id === (invoice.customer?._id || invoice.customer));
       
+      // Get logo path from company settings
+      const logoPath = companySettings.logo;
+      const logoHtml = logoPath 
+          ? `<img src="${SERVER_URL}/${logoPath}" alt="Company Logo" style="max-height: 50px; margin-bottom: 10px;"/>`
+          : '';
+
       const printWindow = window.open('', '_blank');
       printWindow.document.write(`
         <html>
@@ -771,32 +781,40 @@ const handleEditInvoice = useCallback((invoice) => {
               th { background-color: #f5f5f5; }
               .total-row { font-weight: bold; background-color: #f8f9fa; }
               .text-right { text-align: right; }
+              
+              /* Custom styles for professional look */
+              .invoice-header { background-color: #f5f5f5; padding: 15px; border-bottom: 2px solid #007bff; display: flex; justify-content: space-between; align-items: center; }
+              .invoice-header h1 { color: #007bff; margin: 0; }
             </style>
           </head>
           <body>
-            <div class="header">
-              <h1>TAX INVOICE</h1>
-              <p><strong>Invoice #:</strong> ${formatOfficialInvoiceNumber(invoice)}</p>
-              <p><strong>Date:</strong> ${new Date(invoice.createdAt).toLocaleDateString()}</p>
+            <div class="invoice-header">
+              <div>
+                ${logoHtml} <h1>TAX INVOICE</h1>
+              </div>
+              <div class="text-right">
+                <p style="margin-bottom: 5px;"><strong>Invoice #:</strong> ${formatOfficialInvoiceNumber(invoice)}</p>
+                <p style="margin-bottom: 5px;"><strong>Date:</strong> ${new Date(invoice.createdAt).toLocaleDateString()}</p>
+              </div>
             </div>
             
             <div class="section">
               <div style="display: flex; justify-content: space-between;">
-                <div>
+                <div style="width: 48%;">
                   <h3>Bill From:</h3>
-                  <p><strong>${companySettings.name || 'Your Company Name'}</strong></p>
-                  <p><b>Branch: </b>${companySettings.branchLocation || 'Your Branch Location'}</p>
-                  <p><b>Head Office: </b>${companySettings.address || 'Your Business Address'}</p>
-                  <p><b>GST-IN: </b>${companySettings.gstIn ? `${companySettings.gstIn}` : ''}</p>
-                  <p><b>Phone: </b>${companySettings.phone ? ` ${companySettings.phone}` : ''}</p>
+                  <p style="margin-bottom: 2px;"><strong>${companySettings.name || 'Your Company Name'}</strong></p>
+                  <p style="margin-bottom: 2px;"><b>Branch: </b>${companySettings.branchLocation || 'Your Branch Location'}</p>
+                  <p style="margin-bottom: 2px;"><b>Head Office: </b>${companySettings.address || 'Your Business Address'}</p>
+                  <p style="margin-bottom: 2px;"><b>GST-IN: </b>${companySettings.gstIn ? `${companySettings.gstIn}` : ''}</p>
+                  <p style="margin-bottom: 2px;"><b>Phone: </b>${companySettings.phone ? ` ${companySettings.phone}` : ''}</p>
                 </div>
-                <div>
+                <div style="width: 48%;">
                   <h3>Bill To:</h3>
-                  <p><strong>Business Name: </strong>${customer?.businessName || 'N/A'}</p>
-                  <p><b>Name: </b> ${customer?.name || 'N/A'}</p>
-                  <p><b>Address:</b>${customer?.address?.street || customer?.address?.city ? ` ${customer?.address?.street || ''}, ${customer?.address?.city || ''}` : ''}</p>
-                  <p>${customer?.gstNumber ? `GST-IN: ${customer?.gstNumber}` : ''}</p>
-                  <p><b>Contact: </b>${customer?.phone || 'N/A'} / ${customer?.email || 'N/A'}</p>
+                  <p style="margin-bottom: 2px;"><strong>Business Name: </strong>${customer?.businessName || 'N/A'}</p>
+                  <p style="margin-bottom: 2px;"><b>Name: </b> ${customer?.name || 'N/A'}</p>
+                  <p style="margin-bottom: 2px;"><b>Address:</b>${customer?.address?.street || customer?.address?.city ? ` ${customer?.address?.street || ''}, ${customer?.address?.city || ''}` : ''}</p>
+                  <p style="margin-bottom: 2px;">${customer?.gstNumber ? `GST-IN: ${customer?.gstNumber}` : ''}</p>
+                  <p style="margin-bottom: 2px;"><b>Contact: </b>${customer?.phone || 'N/A'} / ${customer?.email || 'N/A'}</p>
                 </div>
               </div>
             </div>
@@ -806,9 +824,10 @@ const handleEditInvoice = useCallback((invoice) => {
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Description</th>
+                    <th>Description (HSN)</th>
                     <th>Qty</th>
                     <th>Price (${currencySymbol})</th>
+                    <th>Tax Rate</th>
                     <th>Amount (${currencySymbol})</th>
                   </tr>
                 </thead>
@@ -816,10 +835,11 @@ const handleEditInvoice = useCallback((invoice) => {
                   ${invoice.items?.map((item, index) => `
                     <tr>
                       <td>${index + 1}</td>
-                      <td>${item.description || `Item ${index + 1}`}</td>
+                      <td>${item.description || `Item ${index + 1}`} ${item.hsnCode ? `(${item.hsnCode})` : ''}</td>
                       <td>${item.quantity}</td>
                       <td>${formatCurrency(item.price)}</td>
-                      <td>${formatCurrency((item.quantity || 0) * (item.price || 0))}</td>
+                      <td>${item.taxRate || '0'}%</td>
+                      <td class="text-right">${formatCurrency((Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + (Number(item.taxRate) || 0) / 100))}</td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -849,23 +869,21 @@ const handleEditInvoice = useCallback((invoice) => {
                     </tr>
                   `}
                   <tr class="total-row">
-                    <td><strong>Total</strong></td>
+                    <td><strong>Total Amount</strong></td>
                     <td class="text-right"><strong>${formatCurrency(invoice.total)}</strong></td>
                   </tr>
                 </tbody>
               </table>
             </div>
-
-            ${invoice.notes ? `
-            <div class="section">
-              <h3>Notes:</h3>
-              <p>${invoice.notes}</p>
+            
+            <div class="section" style="border-top: 1px solid #ddd; padding-top: 10px;">
+                <p><strong>Payment Method:</strong> ${invoice.paymentType?.toUpperCase() || 'CASH'}</p>
+                <p style="white-space: pre-wrap;"><strong>Payment Terms:</strong> ${paymentSettings.terms || 'Payment due upon receipt.'}</p>
+                ${invoice.notes ? `<p><strong>Notes:</strong> ${invoice.notes}</p>` : ''}
             </div>
-            ` : ''}
-
-            <div class="section">
-              <p><strong>Payment Type:</strong> ${invoice.paymentType?.toUpperCase() || 'CASH'} <br/> 
-              <strong>Billing Date:</strong> ${new Date(invoice.createdAt).toLocaleDateString() || 'N/A'}</p>
+            
+            <div class="text-right" style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #000;">
+                <p>Authorized Signature</p>
             </div>
           </body>
         </html>
@@ -877,7 +895,8 @@ const handleEditInvoice = useCallback((invoice) => {
       }, 500);
       
       showAlert('PDF ready for printing', 'success');
-  }, [invoices, customers, companySettings, formatOfficialInvoiceNumber, formatCurrency, currencySymbol, showAlert]);
+  }, [invoices, customers, companySettings, paymentSettings, formatOfficialInvoiceNumber, formatCurrency, currencySymbol, showAlert]);
+
 
   const getStatusVariant = (status) => {
     switch (status) {
@@ -1114,7 +1133,7 @@ const handleEditInvoice = useCallback((invoice) => {
             setCustomerSearch={setCustomerSearch}
             handleCustomerSearch={handleCustomerSearch}
             searchedCustomer={searchedCustomer}
-            setShowCustomerForm={setShowCustomerForm}
+            // Removed setShowCustomerForm prop
             handleLocalCustomerPayloadChange={handleLocalCustomerPayloadChange}
             localCustomerPayload={localCustomerPayload}
             handleCreateCustomer={handleCreateCustomer}
@@ -1166,7 +1185,7 @@ const handleEditInvoice = useCallback((invoice) => {
               setCustomerSearch={setCustomerSearch}
               handleCustomerSearch={handleCustomerSearch}
               searchedCustomer={searchedCustomer}
-              setShowCustomerForm={setShowCustomerForm}
+              // Removed setShowCustomerForm prop
               handleLocalCustomerPayloadChange={handleLocalCustomerPayloadChange}
               localCustomerPayload={localCustomerPayload}
               handleCreateCustomer={handleCreateCustomer}
@@ -1194,142 +1213,150 @@ const handleEditInvoice = useCallback((invoice) => {
       </Modal>
 
       {/* Invoice Preview Modal */}
-     <Modal show={showInvoicePreview} onHide={() => setShowInvoicePreview(false)} size="lg" centered>
-       <Modal.Header closeButton>
-         <Modal.Title>Invoice Preview - #{currentInvoice?.sequentialNumber || currentInvoice?.invoiceNumber}</Modal.Title>
-       </Modal.Header>
-       <Modal.Body>
-         {currentInvoice ? (
-           <div className="p-3">
-             <div className="text-center mb-4">
-               <h2>TAX INVOICE</h2>
-               <p>
-                   <strong>Invoice #:</strong> {currentInvoice.sequentialNumber || currentInvoice.invoiceNumber}
-                   <small className="text-muted ms-2 fst-italic">
-                       ({new Date(currentInvoice.createdAt).toLocaleDateString()})
-                   </small>
-               </p>
-             </div>
-             <Row className="mb-4">
-               <Col md={6}>
-                 <h5>Bill From:</h5>
-                 <p><strong>{companySettings.name || 'Company Name Not Set'}</strong></p>
-                 <p><b>Branch:</b> {companySettings.branchLocation || 'Branch Location Not Set'}</p>
-                 
-                 <p><b>Head Office: </b>{companySettings.address || 'Your Business Address'}</p>
-                 
-                 {companySettings.gstIn && <p><b>GST-IN:</b> {companySettings.gstIn}</p>}
-                 {companySettings.phone && <p><b>Phone:</b> {companySettings.phone}</p>}
-               </Col>
-               <Col md={6}>
-                 {(() => {
-                   const customerId = currentInvoice.customer?._id || currentInvoice.customer;
-                   const customer = customers.find(c => c._id === customerId);
-                   return (
-                       <>
-                           <h5>Bill To:</h5>
-                           <p><strong>Business Name: </strong>{customer?.businessName || customer?.name || 'Unknown Customer'}</p>
-                           {customer?.businessName && <p><b>Name: </b>{customer.name}</p>}
-                           <p>  <b>Address: </b> {customer?.address?.street || customer?.address?.city ?`${customer?.address?.street || ''}, ${customer?.address?.city || ''}` : 'N/A'}</p>
-                           {customer?.gstNumber && <p>GST-IN: {customer.gstNumber}</p>}
-                           <p><b>Contact: </b>{customer?.phone || 'N/A'} / {customer?.email || 'N/A'}</p>
-                       </>
-                   );
-                 })()}
-               </Col>
-             </Row>
+{(() => {
+    // This is defined outside the main return for clarity but executed here.
+    const logoPath = companySettings.logo;
+    const logoElement = logoPath 
+        ? <img 
+            src={`${SERVER_URL}${logoPath}`}
 
-             <Table responsive className="mb-4 table-sm">
-               <thead>
-                 <tr>
-                   <th>#</th>
-                   <th>Description</th>
-                   <th>Qty</th>
-                   <th>Price ({currencySymbol})</th>
-                   <th>Tax %</th> 
-                   <th>Amount ({currencySymbol})</th>
-                 </tr>
-               </thead>
-               <tbody>
-                 {currentInvoice.items?.map((it, i) => (
-                   <tr key={i}>
-                     <td>{i+1}</td>
-                     <td>{it.description}</td>
-                     <td>{it.quantity}</td>
-                     <td>{formatCurrency(it.price)}</td>
-                     <td>{it.taxRate ?? 'N/A'}</td> 
-                     <td>{formatCurrency((it.quantity||0)*(it.price||0))}</td>
-                   </tr>
-                 ))}
-               </tbody>
-             </Table>
+            alt="Company Logo" 
+            style={{ maxHeight: '50px', marginBottom: '10px' }} 
+          />
+        : null;
+    return (
+        <Modal show={showInvoicePreview} onHide={() => setShowInvoicePreview(false)} size="lg" centered>
+            <Modal.Header closeButton>
+                <Modal.Title>Invoice Preview - #{currentInvoice?.sequentialNumber || currentInvoice?.invoiceNumber}</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+                {currentInvoice ? (
+                    <div className="p-3">
+                        {/* 🟢 ADDED LOGO HERE */}
+                        <div className="text-center mb-4">
+                            {logoElement}
+                            <h2>TAX INVOICE</h2>
+                            <p>
+                                <strong>Invoice #:</strong> {currentInvoice.sequentialNumber || currentInvoice.invoiceNumber}
+                                <small className="text-muted ms-2 fst-italic">
+                                    ({new Date(currentInvoice.createdAt).toLocaleDateString()})
+                                </small>
+                            </p>
+                        </div>
+                        {/* 🟢 END LOGO ADDITION */}
+                        
+                        <Row className="mb-4">
+                            <Col md={6}>
+                                <h5>Bill From:</h5>
+                                <p><strong>{companySettings.name || 'Company Name Not Set'}</strong></p>
+                                <p><b>Branch:</b> {companySettings.branchLocation || 'Branch Location Not Set'}</p>
+                                
+                                <p><b>Head Office: </b>{companySettings.address || 'Your Business Address'}</p>
+                                
+                                {companySettings.gstIn && <p><b>GST-IN:</b> {companySettings.gstIn}</p>}
+                                {companySettings.phone && <p><b>Phone:</b> {companySettings.phone}</p>}
+                            </Col>
+                            <Col md={6}>
+                                {(() => {
+                                    const customerId = currentInvoice.customer?._id || currentInvoice.customer;
+                                    const customer = customers.find(c => c._id === customerId);
+                                    return (
+                                        <>
+                                            <h5>Bill To:</h5>
+                                            <p><strong>Business Name: </strong>{customer?.businessName || customer?.name || 'Unknown Customer'}</p>
+                                            {customer?.businessName && <p><b>Name: </b>{customer.name}</p>}
+                                            <p>  <b>Address: </b> {customer?.address?.street || customer?.address?.city ?`${customer?.address?.street || ''}, ${customer?.address?.city || ''}` : 'N/A'}</p>
+                                            {customer?.gstNumber && <p>GST-IN: {customer.gstNumber}</p>}
+                                            <p><b>Contact: </b>{customer?.phone || 'N/A'} / {customer?.email || 'N/A'}</p>
+                                        </>
+                                    );
+                                })()}
+                            </Col>
+                        </Row>
 
-             <Row>
-               <Col md={6}></Col>
-               <Col md={6}>
-                 <Table className='table-sm'>
-                   <tbody>
-                     <tr>
-                       <td><strong>Subtotal</strong></td>
-                       <td className="text-end">{formatCurrency(currentInvoice.subtotal)}</td>
-                     </tr>
-                     {currentInvoice.taxDetails?.gstType === 'cgst_sgst' && currentInvoice.taxDetails?.cgstAmount > 0 ? (
-                       <>
-                         <tr>
-                           <td>CGST ({currentInvoice.taxDetails?.cgst?.toFixed(2)}%)</td>
-                           <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.cgstAmount)}</td>
-                         </tr>
-                         <tr>
-                           <td>SGST ({currentInvoice.taxDetails?.sgst?.toFixed(2)}%)</td>
-                           <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.sgstAmount)}</td>
-                         </tr>
-                       </>
-                     ) : currentInvoice.taxDetails?.totalTax > 0 ? (
-                          <tr>
-                            <td>IGST/Total Tax</td>
-                            <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.totalTax)}</td>
-                          </tr>
-                       ) : null}
-                     <tr className="fw-bold fs-5 text-success">
-                       <td>Total</td>
-                       <td className="text-end"><strong>{formatCurrency(currentInvoice.total)}</strong></td>
-                     </tr>
-                   </tbody>
-                 </Table>
-               </Col>
-             </Row>
+                        <Table responsive className="mb-4 table-sm">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Description</th>
+                                    <th>Qty</th>
+                                    <th>Price ({currencySymbol})</th>
+                                    <th>Tax %</th> 
+                                    <th>Amount ({currencySymbol})</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {currentInvoice.items?.map((it, i) => (
+                                    <tr key={i}>
+                                        <td>{i+1}</td>
+                                        <td>{it.description}</td>
+                                        <td>{it.quantity}</td>
+                                        <td>{formatCurrency(it.price)}</td>
+                                        <td>{it.taxRate ?? 'N/A'}</td> 
+                                        <td>{formatCurrency((it.quantity||0)*(it.price||0))}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </Table>
 
-             {currentInvoice.notes && (
-               <div className="mt-4">
-                 <h6>Notes:</h6>
-                 <p>{currentInvoice.notes}</p>
-               </div>
-             )}
-             <div className="mt-4">
-                 {/* <h6>Payment Instructions:</h6>
-                 <p style={{whiteSpace: 'pre-wrap'}}>
-                    {paymentSettings.terms || 'Payment is due upon receipt.'}
-                 </p>
-                 <div className="d-flex gap-4 small text-muted">
-                    <span>Bank: {paymentSettings.bankName || 'N/A'}</span>
-                    <span>A/C: {paymentSettings.accountNumber || 'N/A'}</span>
-                    <span>IFSC: {paymentSettings.ifsc || 'N/A'}</span>
-                 </div> */}
-                 
-               <p>
-                 <strong>Payment Type:</strong> {currentInvoice.paymentType?.toUpperCase() || 'CASH'} <br/>
-                 <strong> Billing Date:</strong> ({new Date(currentInvoice.createdAt).toLocaleDateString()})</p> 
-             </div>
-           </div>
-         ) : <div>No invoice selected</div>}
-       </Modal.Body>
-       <Modal.Footer>
-         <Button variant="outline-secondary" onClick={() => setShowInvoicePreview(false)}>Close</Button>
-         <Button variant="primary" onClick={() => handleDownloadPDF(currentInvoice._id)}>
-           <Printer size={16} className="me-2" />Print
-         </Button>
-       </Modal.Footer>
-     </Modal>
+                        <Row>
+                            <Col md={6}></Col>
+                            <Col md={6}>
+                                <Table className='table-sm'>
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>Subtotal</strong></td>
+                                            <td className="text-end">{formatCurrency(currentInvoice.subtotal)}</td>
+                                        </tr>
+                                        {currentInvoice.taxDetails?.gstType === 'cgst_sgst' && currentInvoice.taxDetails?.cgstAmount > 0 ? (
+                                            <>
+                                                <tr>
+                                                    <td>CGST ({currentInvoice.taxDetails?.cgst?.toFixed(2)}%)</td>
+                                                    <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.cgstAmount)}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>SGST ({currentInvoice.taxDetails?.sgst?.toFixed(2)}%)</td>
+                                                    <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.sgstAmount)}</td>
+                                                </tr>
+                                            </>
+                                        ) : currentInvoice.taxDetails?.totalTax > 0 ? (
+                                            <tr>
+                                                <td>IGST/Total Tax</td>
+                                                <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.totalTax)}</td>
+                                            </tr>
+                                        ) : null}
+                                        <tr className="fw-bold fs-5 text-success">
+                                            <td>Total</td>
+                                            <td className="text-end"><strong>{formatCurrency(currentInvoice.total)}</strong></td>
+                                        </tr>
+                                    </tbody>
+                                </Table>
+                            </Col>
+                        </Row>
+
+                        {currentInvoice.notes && (
+                            <div className="mt-4">
+                                <h6>Notes:</h6>
+                                <p>{currentInvoice.notes}</p>
+                            </div>
+                        )}
+                        <div className="mt-4">
+                            <p>
+                                <strong>Payment Type:</strong> {currentInvoice.paymentType?.toUpperCase() || 'CASH'} <br/>
+                                <strong> Billing Date:</strong> ({new Date(currentInvoice.createdAt).toLocaleDateString()})</p> 
+                        </div>
+                    </div>
+                ) : <div>No invoice selected</div>}
+            </Modal.Body>
+            <Modal.Footer>
+                <Button variant="outline-secondary" onClick={() => setShowInvoicePreview(false)}>Close</Button>
+                <Button variant="primary" onClick={() => handleDownloadPDF(currentInvoice._id)}>
+                    <Printer size={16} className="me-2" />Print
+                </Button>
+            </Modal.Footer>
+        </Modal>
+    );
+})()}
 
     </div>
   );

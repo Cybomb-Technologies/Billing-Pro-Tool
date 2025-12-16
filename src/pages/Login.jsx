@@ -68,16 +68,7 @@ const Login = () => {
                     <h1 className="fw-bold mb-3">Billing Pro</h1>
                     <p className="lead">Seamless invoicing for your business growth.</p>
                     <LogIn size={64} className="mt-4" />
-                    <Button 
-                       
-                        onClick={handleGoHome} 
-                         variant="outline-light"
-                                    size="md"
-                                    className="fw-semibold mt-4 mx-3 rounded-pill px-5 py-3 border-2"
-                                    type="button"
-                    >
-                        Back to Homepage
-                    </Button>
+                    
                   </div>
                 </Col>
 
@@ -153,13 +144,7 @@ const Login = () => {
                     </small>
                   </div> */}
                   <div className="text-center mt-3 d-md-none">
-                      <Button 
-                        variant="link" 
-                        onClick={handleGoHome} 
-                        className="text-primary text-decoration-underline"
-                      >
-                          &larr; Back to Homepage
-                      </Button>
+                      
                   </div>
                 </Col>
               </Row>

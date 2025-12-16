@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+release/
+release.zip
+*.exe
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +25,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment Variables
+.env
+**/.env
+server/.env

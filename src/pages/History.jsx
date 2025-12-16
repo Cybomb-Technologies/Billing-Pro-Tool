@@ -4,7 +4,8 @@ import { Card, Table, Row, Col, Form, Badge, Button, Alert } from 'react-bootstr
 import { Calendar, Filter, Download } from 'lucide-react';
 import axios from 'axios';
 
-const SETTINGS_API_BASE_URL = "http://localhost:5000/api/settings";
+import { API_BASE_URL } from '../config';
+const SETTINGS_API_BASE_URL = `${API_BASE_URL}/settings`;
 
 const History = () => {
   const [transactions, setTransactions] = useState([]);
@@ -109,7 +110,7 @@ const History = () => {
         params.end = dateRange.end;
       }
 
-      const response = await axios.get('http://localhost:5000/api/invoices', {
+      const response = await axios.get(`${API_BASE_URL}/invoices`, {
         params,
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -186,7 +187,7 @@ const History = () => {
         params.end = dateRange.end;
       }
 
-      const res = await axios.get('http://localhost:5000/api/invoices/export', { 
+      const res = await axios.get(`${API_BASE_URL}/invoices/export`, { 
           params,
           responseType: 'blob',
           headers: { Authorization: `Bearer ${token}` }

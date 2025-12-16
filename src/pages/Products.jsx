@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Table, 
   Button, 
@@ -10,15 +10,22 @@ import {
   Alert,
   Badge,
   InputGroup,
-  Dropdown
+  Dropdown,
+  Pagination
 } from 'react-bootstrap';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import { Plus, Download, MoreVertical, Search, Edit, Trash2, RefreshCw } from 'lucide-react';
 
-const SETTINGS_API_BASE_URL = "http://localhost:5000/api/settings";
+const SETTINGS_API_BASE_URL = `${API_BASE_URL}/settings`;
 
 const Products = () => {
   const [products, setProducts] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const limit = 10;
+  
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -31,7 +38,7 @@ const Products = () => {
     price: '',
     costPrice: '',
     sku: '',
-    category: '',
+    category: '', // This can be a new or existing category name
     taxRate: '',
     stock: '', 
     lowStockThreshold: 10
@@ -41,11 +48,27 @@ const Products = () => {
   const [currencySymbol, setCurrencySymbol] = useState('$'); 
   const [currencyCode, setCurrencyCode] = useState('USD'); 
 
-  // Sample categories for dropdown
-  const categories = [
-    'All', 'Electronics', 'Clothing', 'Books', 'Home & Kitchen', 
-    'Sports', 'Beauty', 'Toys', 'Automotive', 'Food & Beverages'
-  ];
+  // --- DYNAMIC CATEGORIES ---
+  // Memoize the list of unique categories from loaded products + default options
+  const existingCategories = useMemo(() => {
+    const defaultCategories = ['All', 'Electronics', 'Clothing', 'Books', 'Home & Kitchen'];
+    const productCategories = products
+      .map(p => p.category)
+      .filter(Boolean); // Filter out null/undefined categories
+
+    const uniqueCategories = new Set([...defaultCategories, ...productCategories]);
+    
+    // Convert Set back to Array, ensuring 'All' is at the start (if present)
+    const categoryArray = Array.from(uniqueCategories).sort();
+    const allIndex = categoryArray.indexOf('All');
+    if (allIndex > 0) {
+      categoryArray.splice(allIndex, 1);
+      categoryArray.unshift('All');
+    }
+
+    return categoryArray;
+  }, [products]);
+
   
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
@@ -93,17 +116,32 @@ const Products = () => {
   }, []);
 
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (page = 1) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/products', {
+      const response = await axios.get(`${API_BASE_URL}/products?page=${page}&limit=${limit}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setProducts(response.data);
+      // Handle response structure depending on backend update
+      if (response.data.products) {
+          setProducts(response.data.products);
+          setCurrentPage(response.data.currentPage);
+          setTotalPages(response.data.totalPages);
+          setTotalItems(response.data.totalItems);
+      } else {
+          // Fallback if backend hasn't been updated yet or sends array directly
+           setProducts(response.data);
+      }
+
     } catch (error) {
       console.error('Error fetching products:', error);
       showAlert('Error fetching products', 'danger');
     }
+  };
+
+  const handlePageChange = (pageNumber) => {
+      if (pageNumber < 1 || pageNumber > totalPages) return;
+      fetchProducts(pageNumber);
   };
 
   const initialFetch = useCallback(async () => {
@@ -131,16 +169,18 @@ const handleSubmit = async (e) => {
       costPrice: formData.costPrice ? parseFloat(formData.costPrice) : undefined,
       taxRate: formData.taxRate ? parseFloat(formData.taxRate) : 18,
       stock: parseInt(formData.stock) || 0, // Ensure stock is an integer
-      lowStockThreshold: parseInt(formData.lowStockThreshold) || 10
+      lowStockThreshold: parseInt(formData.lowStockThreshold) || 10,
+      // Ensure category is cleaned up if empty
+      category: formData.category ? formData.category.trim() : null 
     };
 
     if (editingProduct) {
-      await axios.put(`http://localhost:5000/api/products/${editingProduct._id}`, submitData, {
+      await axios.put(`${API_BASE_URL}/products/${editingProduct._id}`, submitData, {
         headers: getAuthHeaders()
       });
       showAlert('Product updated successfully');
     } else {
-      await axios.post('http://localhost:5000/api/products', submitData, {
+      await axios.post(`${API_BASE_URL}/products`, submitData, {
         headers: getAuthHeaders()
       });
       showAlert('Product created successfully');
@@ -176,7 +216,7 @@ const handleDelete = async () => {
   try {
     const token = localStorage.getItem("token");
 
-    await axios.delete(`http://localhost:5000/api/products/${editingProduct._id}`, {
+    await axios.delete(`${API_BASE_URL}/products/${editingProduct._id}`, {
       headers: getAuthHeaders(),
     });
 
@@ -215,7 +255,7 @@ const handleDelete = async () => {
   const handleExportCSV = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/products/export', {
+      const response = await axios.get(`${API_BASE_URL}/products/export`, {
         responseType: 'blob',
         headers: getAuthHeaders()
       });
@@ -323,7 +363,8 @@ const handleDelete = async () => {
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
                 >
-                  {categories.map(category => (
+                  {/* Use dynamically generated categories */}
+                  {existingCategories.map(category => (
                     <option key={category} value={category}>{category}</option>
                   ))}
                 </Form.Select>
@@ -423,6 +464,29 @@ const handleDelete = async () => {
           </Table>
         </Card.Body>
       </Card>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="d-flex justify-content-center mt-4">
+          <Pagination>
+            <Pagination.First onClick={() => handlePageChange(1)} disabled={currentPage === 1} />
+            <Pagination.Prev onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} />
+            
+            {[...Array(totalPages)].map((_, idx) => (
+               <Pagination.Item 
+                 key={idx + 1} 
+                 active={idx + 1 === currentPage}
+                 onClick={() => handlePageChange(idx + 1)}
+               >
+                 {idx + 1}
+               </Pagination.Item>
+            ))}
+
+            <Pagination.Next onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} />
+            <Pagination.Last onClick={() => handlePageChange(totalPages)} disabled={currentPage === totalPages} />
+          </Pagination>
+        </div>
+      )}
 
       {/* Add/Edit Product Modal */}
       <Modal show={showModal} onHide={() => { setShowModal(false); resetForm(); }} size="lg">
@@ -529,19 +593,41 @@ const handleDelete = async () => {
               </Col>
             </Row>
             
+            {/* 🟢 ENHANCEMENT: REPLACED SIMPLE DATALIST INPUT WITH INPUTGROUP + DROPDOWN */}
             <Form.Group className="mb-3">
-              <Form.Label>Category</Form.Label>
-              <Form.Select
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-              >
-                <option value="">Select Category</option>
-                {categories.filter(cat => cat !== 'All').map(category => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </Form.Select>
+                <Form.Label>Category (Select Existing or Type New)</Form.Label>
+                <InputGroup>
+                    <Form.Control
+                        type="text"
+                        name="category"
+                        value={formData.category}
+                        onChange={handleChange}
+                        placeholder="Select existing category or type new name"
+                        aria-label="Product Category"
+                    />
+                    <Dropdown as={InputGroup.Append} className="ms-0">
+                        <Dropdown.Toggle variant="outline-secondary">
+                            Existing Categories
+                        </Dropdown.Toggle>
+                        <Dropdown.Menu className="dropdown-menu-end" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                            <Dropdown.Header>Select an Existing Category:</Dropdown.Header>
+                            {/* Filter out 'All' and null/empty categories for product creation */}
+                            {existingCategories.filter(cat => cat !== 'All' && cat).map(category => (
+                                <Dropdown.Item 
+                                    key={category} 
+                                    onClick={() => setFormData(prev => ({ ...prev, category: category }))}
+                                >
+                                    {category}
+                                </Dropdown.Item>
+                            ))}
+                        </Dropdown.Menu>
+                    </Dropdown>
+                </InputGroup>
+                <Form.Text className="text-muted">
+                    Click the "Existing Categories" button or type a new category name.
+                </Form.Text>
             </Form.Group>
+
 
             {formData.price && (
               <Card className="bg-light">

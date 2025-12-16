@@ -1,8 +1,9 @@
 // InvoiceBackend.jsx
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../../config';
 
-const SETTINGS_API_BASE_URL = "http://localhost:5000/api/settings";
+const SETTINGS_API_BASE_URL = `${API_BASE_URL}/settings`;
 
 /**
  * useInvoiceBackend
@@ -55,7 +56,7 @@ export default function useInvoiceBackend() {
 
   const fetchInvoices = useCallback(async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/invoices', { headers: getAuthHeaders() });
+      const res = await axios.get(`${API_BASE_URL}/invoices`, { headers: getAuthHeaders() });
       const invoicesData = res.data.invoices || res.data;
       setInvoices(Array.isArray(invoicesData) ? invoicesData : []);
     } catch (err) {
@@ -65,8 +66,12 @@ export default function useInvoiceBackend() {
 
   const fetchCustomers = useCallback(async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/customers', { headers: getAuthHeaders() });
-      setCustomers(res.data);
+      const res = await axios.get(`${API_BASE_URL}/customers`, { 
+        headers: getAuthHeaders(),
+        params: { limit: 1000 }
+      });
+      const customersData = res.data.customers || res.data;
+      setCustomers(Array.isArray(customersData) ? customersData : []);
     } catch (err) {
       showAlert('Error fetching customers', 'danger');
     }
@@ -74,8 +79,12 @@ export default function useInvoiceBackend() {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/products', { headers: getAuthHeaders() });
-      setProducts(res.data);
+      const res = await axios.get(`${API_BASE_URL}/products`, { 
+        headers: getAuthHeaders(),
+        params: { limit: 1000 }
+      });
+      const productsData = res.data.products || res.data;
+      setProducts(Array.isArray(productsData) ? productsData : []);
     } catch (err) {
       showAlert('Error fetching products', 'danger');
     }
@@ -107,7 +116,7 @@ export default function useInvoiceBackend() {
     
     try {
       // Backend will save the sequential invoiceNumber provided in payload
-      const res = await axios.post('http://localhost:5000/api/invoices', invoicePayload, { headers: getAuthHeaders() });
+      const res = await axios.post(`${API_BASE_URL}/invoices`, invoicePayload, { headers: getAuthHeaders() });
       await Promise.all([fetchInvoices(), fetchProducts()]); // Refetch products for immediate stock update
       showAlert('Invoice created successfully!', 'success');
       return res.data;
@@ -121,7 +130,7 @@ export default function useInvoiceBackend() {
   const updateInvoice = async (invoiceId, invoicePayload) => {
     try {
       // Backend will use the existing sequential invoiceNumber in payload
-      await axios.put(`http://localhost:5000/api/invoices/${invoiceId}`, invoicePayload, { headers: getAuthHeaders() });
+      await axios.put(`${API_BASE_URL}/invoices/${invoiceId}`, invoicePayload, { headers: getAuthHeaders() });
       await Promise.all([fetchInvoices(), fetchProducts()]);
       showAlert('Invoice updated successfully!', 'success');
     } catch (err) {
@@ -133,7 +142,7 @@ export default function useInvoiceBackend() {
 
   const deleteInvoice = async (invoiceId) => {
     try {
-      await axios.delete(`http://localhost:5000/api/invoices/${invoiceId}`, { headers: getAuthHeaders() });
+      await axios.delete(`${API_BASE_URL}/invoices/${invoiceId}`, { headers: getAuthHeaders() });
       await Promise.all([fetchInvoices(), fetchProducts()]);
       showAlert('Invoice deleted successfully!', 'success');
     } catch (err) {
@@ -144,7 +153,7 @@ export default function useInvoiceBackend() {
   
   const createCustomer = async (customerPayload) => {
     try {
-      const res = await axios.post('http://localhost:5000/api/customers', customerPayload, { headers: getAuthHeaders() });
+      const res = await axios.post(`${API_BASE_URL}/customers`, customerPayload, { headers: getAuthHeaders() });
       setCustomers(prev => [...prev, res.data]);
       showAlert('Customer created successfully', 'success');
       return res.data;
@@ -169,7 +178,7 @@ export default function useInvoiceBackend() {
       }
       
       // Assuming the backend handles the OR logic based on these parameters
-      const res = await axios.get(`http://localhost:5000/api/customers/search`, { 
+      const res = await axios.get(`${API_BASE_URL}/customers/search`, { 
           params,
           headers: getAuthHeaders() 
       });
@@ -181,7 +190,7 @@ export default function useInvoiceBackend() {
 
   const exportInvoices = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/invoices/export', { responseType: 'blob', headers: getAuthHeaders() });
+      const res = await axios.get(`${API_BASE_URL}/invoices/export`, { responseType: 'blob', headers: getAuthHeaders() });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;

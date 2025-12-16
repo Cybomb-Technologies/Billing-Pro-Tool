@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, Table, Row, Col, Button, Badge, Form, Modal, ProgressBar, InputGroup, Alert } from 'react-bootstrap';
 import { Plus, Search, Package, AlertTriangle, TrendingUp, Edit, Zap, RefreshCw } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import { Link } from 'react-router-dom';
 
-const SETTINGS_API_BASE_URL = "http://localhost:5000/api/settings";
+const SETTINGS_API_BASE_URL = `${API_BASE_URL}/settings`;
 
 const Inventory = () => {
   const [products, setProducts] = useState([]);
@@ -70,11 +71,15 @@ const Inventory = () => {
   const fetchInventory = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/products', {
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await axios.get(`${API_BASE_URL}/products`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { limit: 1000 }
       });
 
-      const productsWithStock = response.data.map(product => ({
+      const productsData = response.data.products || response.data;
+      const productsArray = Array.isArray(productsData) ? productsData : [];
+
+      const productsWithStock = productsArray.map(product => ({
         ...product,
         stock: product.stock ?? 0,
         costPrice: product.costPrice ?? product.price * 0.5,
@@ -130,7 +135,7 @@ const Inventory = () => {
         const token = localStorage.getItem('token');
         const newStock = currentProduct.stock + restockAmount;
         
-        await axios.put(`http://localhost:5000/api/products/${currentProduct._id}/stock`, {
+        await axios.put(`${API_BASE_URL}/products/${currentProduct._id}/stock`, {
             stock: newStock 
         }, {
           headers: getAuthHeaders()
