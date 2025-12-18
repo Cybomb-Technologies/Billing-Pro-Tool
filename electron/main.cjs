@@ -41,7 +41,8 @@ function createWindow() {
     width: 1200,
     height: 800,
     show: false,
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    autoHideMenuBar: true,
+    icon: fs.existsSync(iconPath) ? iconPath : path.join(resourcesPath, "logo.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,

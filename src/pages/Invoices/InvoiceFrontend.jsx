@@ -1,7 +1,7 @@
 // InvoiceFrontend.jsx
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
-  Table, Button, Card, Row, Col, Modal, Form, Badge, Dropdown, Alert, InputGroup, Spinner
+  Table, Button, Card, Row, Col, Modal, Form, Badge, Dropdown, Alert, InputGroup, Spinner, ListGroup
 } from 'react-bootstrap';
 import {
   Plus, Download, MoreVertical, Eye, Printer, Edit, FileText, Search, X, Trash2, Box, Building, User as UserIcon // Renamed User icon for clarity
@@ -9,6 +9,7 @@ import {
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext'; // FIX: Adjusted import path
 import { API_BASE_URL, SERVER_URL } from '../../config';
+import html2pdf from 'html2pdf.js';
 
 // Base URL for settings API call
 const SETTINGS_API_BASE_URL = `${API_BASE_URL}/settings`;
@@ -21,15 +22,57 @@ const InvoiceForm = React.memo(function InvoiceForm({
     isEdit = false, onSubmit, onCancel, submitButtonText = "Create Invoice",
     // Props passed directly from InvoiceFrontend state/handlers
     customerSearch, setCustomerSearch, handleCustomerSearch,
-    searchedCustomer, // Removed setShowCustomerForm
-    handleLocalCustomerPayloadChange,
+    searchedCustomer, setSearchedCustomer, // Removed setShowCustomerForm
+    handleLocalCustomerPayloadChange, setLocalCustomerPayload, // Added setLocalCustomerPayload
     localCustomerPayload, handleCreateCustomer,
     dueDate, setDueDate, paymentType, setPaymentType, paymentTypes,
     addItem, removeItem, updateItem, invoiceItems,
     handleProductSelect, handleItemFieldChange, products, getProductStock,
     notes, setNotes, totals, formatCurrency, currencySymbol,
-    selectedCustomer 
+    selectedCustomer, setSelectedCustomer, customers, handleDeselectCustomer, // Added setSelectedCustomer
+    showAlert // Added showAlert
 }) {
+
+  // Auto-complete logic
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  useEffect(() => {
+    if (!customers) return;
+    // Don't show suggestions if a customer is already selected/found to avoid clutter
+    if (customerSearch && !selectedCustomer) { 
+         const term = customerSearch.toLowerCase();
+         if (term.length < 1) { setShowSuggestions(false); return; }
+
+         const matches = customers.filter(c => 
+             (c.name || '').toLowerCase().includes(term) ||
+             (c.phone || '').includes(term) ||
+             (c.businessName || '').toLowerCase().includes(term)
+         ).slice(0, 5);
+         setSuggestions(matches);
+         setShowSuggestions(matches.length > 0);
+    } else {
+        setShowSuggestions(false);
+    }
+  }, [customerSearch, customers, selectedCustomer]);
+
+  const handleSuggestionClick = (c) => {
+      setSearchedCustomer(c);
+      setSelectedCustomer(c._id);
+      setCustomerSearch(c.phone || c.businessName || c.name);
+      
+      // Update local payload in case they want to edit or see details
+      setLocalCustomerPayload({
+          name: c.name, 
+          businessName: c.businessName || '', 
+          email: c.email || '', 
+          phone: c.phone || '', // Check if phone exists
+          address: c.address || { street: '', city: '', state: '', zipCode: '' }
+      });
+      
+      setShowSuggestions(false);
+      showAlert('Customer selected', 'success');
+  };
 
   // Logic to show the New Customer Form/Card: 
   // Show if a search was performed (customerSearch has value) AND 
@@ -47,27 +90,56 @@ const InvoiceForm = React.memo(function InvoiceForm({
             <Col md={6} className="border-end pe-md-4">
               <Form.Group>
                 <Form.Label className="fw-bold">Customer Mobile or Business Name *</Form.Label> 
-                <InputGroup>
-                  <Form.Control 
-                    type="text" 
-                    placeholder="Enter phone or business name" 
-                    value={customerSearch} 
-                    onChange={(e) => setCustomerSearch(e.target.value)} 
-                    onKeyPress={(e) => { if (e.key === 'Enter') handleCustomerSearch(); }}
-                    aria-describedby="customerSearchHelp"
-                  />
-                  <Button variant="primary" onClick={handleCustomerSearch} disabled={!customerSearch.trim()}>
-                    <Search size={16} /> Search
-                  </Button>
-                </InputGroup>
+                <div className="position-relative">
+                    <InputGroup>
+                      <Form.Control 
+                        type="text" 
+                        placeholder="Enter phone or business name" 
+                        value={customerSearch} 
+                        onChange={(e) => setCustomerSearch(e.target.value)} 
+                        onKeyPress={(e) => { if (e.key === 'Enter') handleCustomerSearch(); }}
+                        aria-describedby="customerSearchHelp"
+                        autoComplete="off"
+                      />
+                      <Button variant="primary" type="button" onClick={() => handleCustomerSearch()} disabled={!customerSearch.trim()}>
+                        <Search size={16} /> Search
+                      </Button>
+                    </InputGroup>
+                    
+                     {/* Suggestions Dropdown */}
+                    {showSuggestions && (
+                        <ListGroup className="position-absolute w-100 shadow-sm" style={{ zIndex: 1000, top: '100%', maxHeight: '200px', overflowY: 'auto' }}>
+                            {suggestions.map(c => (
+                                <ListGroup.Item 
+                                    key={c._id} 
+                                    action 
+                                    type="button" // Prevent form submission
+                                    onClick={() => handleSuggestionClick(c)}
+                                    className="d-flex justify-content-between align-items-center"
+                                >
+                                    <div>
+                                        <strong>{c.businessName || c.name}</strong>
+                                        <div className="small text-muted">{c.phone}</div>
+                                    </div>
+                                    {c.businessName && <small className="text-muted">{c.name}</small>}
+                                </ListGroup.Item>
+                            ))}
+                        </ListGroup>
+                    )}
+                </div>
                 <Form.Text id="customerSearchHelp" className="text-muted">
                   Enter phone number (primary) or full business name.
                 </Form.Text>
                 {/* Visual feedback for selected customer */}
                 {selectedCustomer && searchedCustomer && (
-                     <Alert variant="success" className="p-2 mt-2 mb-0">
-                         <UserIcon size={16} className="me-2"/>
-                         **Customer Selected:** {searchedCustomer.businessName || searchedCustomer.name}
+                     <Alert variant="success" className="p-2 mt-2 mb-0 d-flex justify-content-between align-items-center">
+                         <div>
+                             <UserIcon size={16} className="me-2"/>
+                             <strong>Customer Selected:</strong> {searchedCustomer.businessName || searchedCustomer.name}
+                         </div>
+                         <Button variant="outline-danger" size="sm" type="button" onClick={handleDeselectCustomer} title="Deselect Customer">
+                            <X size={16} />
+                         </Button>
                      </Alert>
                  )}
               </Form.Group>
@@ -550,14 +622,16 @@ export default function InvoiceFrontend(props) {
   }, [sequentiallyOrderedInvoices]); 
 
   // --- Customer Handlers ---
-  const handleCustomerSearch = useCallback(async () => {
+  const handleCustomerSearch = useCallback(async (queryOverride) => {
     // UPDATED: Search logic to check if input is a phone number or business name
-    if (!customerSearch.trim()) {
+    const query = typeof queryOverride === 'string' ? queryOverride : customerSearch;
+
+    if (!query.trim()) {
       showAlert('Please enter Mobile Number or Business Name.', 'warning');
       return;
     }
     
-    let searchQuery = customerSearch.trim();
+    let searchQuery = query.trim();
     // Use isNaN check as a proxy for identifying phone numbers
     let searchField = isNaN(searchQuery) || searchQuery.length < 5 ? 'businessName' : 'phone';
 
@@ -606,6 +680,13 @@ export default function InvoiceFrontend(props) {
         // Handled by backend hook
     }
   }, [localCustomerPayload, createCustomer, showAlert]);
+
+  const handleDeselectCustomer = useCallback(() => {
+    setSelectedCustomer(null);
+    setSearchedCustomer(null);
+    setCustomerSearch('');
+    setLocalCustomerPayload({ name: '', businessName: '', email: '', phone: '', address: { street: '', city: '', state: '', zipCode: '' } });
+  }, [setSelectedCustomer, setSearchedCustomer, setCustomerSearch, setLocalCustomerPayload]);
   
   const handleLocalCustomerPayloadChange = useCallback((e) => {
       const { name, value } = e.target;
@@ -676,17 +757,20 @@ export default function InvoiceFrontend(props) {
         taxDetails: {
           ...derivedTaxDetails, cgstAmount, sgstAmount, igstAmount, totalTax
         },
-        total, dueDate, notes, paymentType,
-        status: existingInvoice?.status || 'draft', // Preserve status on update
+        total, 
+        // dueDate, // Removed due date
+        notes, 
+        paymentType, // Ensure this is passed
+        status: existingInvoice?.status || 'paid', // Preserve status on update
         createdAt: existingInvoice?.createdAt || new Date().toISOString(), // Preserve date on update
         createdBy: user?._id 
       };
   }, [totals, invoiceItems, showAlert, invoices.length, selectedCustomer, dueDate, notes, paymentType, user?._id]);
 
   const handleCreateInvoiceClick = useCallback(async () => {
-    const finalDueDate = dueDate || new Date().toISOString().split('T')[0];
+    const finalDueDate = new Date().toISOString().split('T')[0]; // dummy or optional
 
-    if (!selectedCustomer || invoiceItems.length === 0 || !finalDueDate) {
+    if (!selectedCustomer || invoiceItems.length === 0) {
         showAlert('Please ensure a customer is selected and items are added.', 'warning');
         return;
     }
@@ -700,7 +784,7 @@ export default function InvoiceFrontend(props) {
     const invoicePayload = buildInvoicePayload(null); 
     if (!invoicePayload) return;
 
-    invoicePayload.dueDate = finalDueDate;
+    // invoicePayload.dueDate = finalDueDate; // Removed assignment
 
     try {
       await createInvoice(invoicePayload);
@@ -714,7 +798,7 @@ export default function InvoiceFrontend(props) {
   const handleUpdateInvoiceClick = useCallback(async () => {
     if (!editingInvoice) return;
     
-    const finalDueDate = dueDate || new Date().toISOString().split('T')[0];
+    const finalDueDate = new Date().toISOString().split('T')[0];
 
     const stockError = invoiceItems.some(item => Number(item.quantity) > getProductStock(item.product));
     if (stockError) {
@@ -725,7 +809,7 @@ export default function InvoiceFrontend(props) {
     const payload = buildInvoicePayload(editingInvoice);
     if (!payload) return;
 
-    payload.dueDate = finalDueDate;
+    // payload.dueDate = finalDueDate; // Removed assignment
 
     delete payload.createdBy; 
     
@@ -757,34 +841,48 @@ const handleEditInvoice = useCallback((invoice) => {
   }, [deleteInvoice]);
 
 // 🟢 UPDATED: LOGO INTEGRATION IN PRINT/PDF HANDLER
-  const handleDownloadPDF = useCallback((invoiceId) => {
-      const invoice = invoices.find(inv => inv._id === invoiceId);
-      const customer = customers.find(c => c._id === (invoice.customer?._id || invoice.customer));
-      
-      // Get logo path from company settings
-      const logoPath = companySettings.logo;
-      const logoHtml = logoPath 
-          ? `<img src="${SERVER_URL}/${logoPath}" alt="Company Logo" style="max-height: 50px; margin-bottom: 10px;"/>`
-          : '';
+  // Helper to convert image to base64
+  const getBase64ImageFromUrl = async (imageUrl) => {
+      try {
+          const res = await fetch(imageUrl);
+          const blob = await res.blob();
+          return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+          });
+      } catch (error) {
+          console.error("Error converting image to base64:", error);
+          return null;
+      }
+  };
 
-      const printWindow = window.open('', '_blank');
-      printWindow.document.write(`
+  const generateInvoiceHTML = (invoice, customer, companySettings, paymentSettings, logoBase64) => {
+      const logoHtml = logoBase64 
+        ? `<img src="${logoBase64}" alt="Company Logo" style="max-height: 50px; margin-bottom: 10px;"/>`
+        : '';
+        
+       const paymentTermsHtml = paymentSettings.terms 
+        ? `<p style="white-space: pre-wrap;"><strong>Payment Terms:</strong> ${paymentSettings.terms}</p>` 
+        : '';
+
+      return `
         <html>
           <head>
             <title>Invoice ${invoice.invoiceNumber}</title>
             <style>
-              body { font-family: Arial, sans-serif; margin: 20px; }
+              body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
               .header { text-align: center; margin-bottom: 30px; }
               .section { margin-bottom: 20px; }
               table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
               th { background-color: #f5f5f5; }
               .total-row { font-weight: bold; background-color: #f8f9fa; }
               .text-right { text-align: right; }
               
-              /* Custom styles for professional look */
               .invoice-header { background-color: #f5f5f5; padding: 15px; border-bottom: 2px solid #007bff; display: flex; justify-content: space-between; align-items: center; }
-              .invoice-header h1 { color: #007bff; margin: 0; }
+              .invoice-header h1 { color: #007bff; margin: 0; font-size: 24px; }
             </style>
           </head>
           <body>
@@ -794,7 +892,7 @@ const handleEditInvoice = useCallback((invoice) => {
               </div>
               <div class="text-right">
                 <p style="margin-bottom: 5px;"><strong>Invoice #:</strong> ${formatOfficialInvoiceNumber(invoice)}</p>
-                <p style="margin-bottom: 5px;"><strong>Date:</strong> ${new Date(invoice.createdAt).toLocaleDateString()}</p>
+                <p style="margin-bottom: 5px;"><strong>Date:</strong> ${new Date(invoice.createdAt).toLocaleString()}</p>
               </div>
             </div>
             
@@ -878,7 +976,7 @@ const handleEditInvoice = useCallback((invoice) => {
             
             <div class="section" style="border-top: 1px solid #ddd; padding-top: 10px;">
                 <p><strong>Payment Method:</strong> ${invoice.paymentType?.toUpperCase() || 'CASH'}</p>
-                <p style="white-space: pre-wrap;"><strong>Payment Terms:</strong> ${paymentSettings.terms || 'Payment due upon receipt.'}</p>
+                ${paymentTermsHtml}
                 ${invoice.notes ? `<p><strong>Notes:</strong> ${invoice.notes}</p>` : ''}
             </div>
             
@@ -887,14 +985,53 @@ const handleEditInvoice = useCallback((invoice) => {
             </div>
           </body>
         </html>
-      `);
+      `;
+  };
+
+  const handleDownloadPDF = useCallback(async (invoiceId) => {
+      const invoice = invoices.find(inv => inv._id === invoiceId);
+      const customer = customers.find(c => c._id === (invoice.customer?._id || invoice.customer));
       
+      let logoBase64 = null;
+      if (companySettings.logo) {
+          logoBase64 = await getBase64ImageFromUrl(`${SERVER_URL}${companySettings.logo}`);
+      }
+
+      const htmlContent = generateInvoiceHTML(invoice, customer, companySettings, paymentSettings, logoBase64);
+      const element = document.createElement('div');
+      element.innerHTML = htmlContent;
+      
+      const opt = {
+        margin:       10,
+        filename:     `Invoice-${invoice.invoiceNumber}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      html2pdf().set(opt).from(element).save();
+      showAlert('PDF downloading...', 'success');
+  }, [invoices, customers, companySettings, paymentSettings, formatOfficialInvoiceNumber, formatCurrency, currencySymbol, showAlert]);
+
+  const handlePrintInvoice = useCallback(async (invoiceId) => {
+      const invoice = invoices.find(inv => inv._id === invoiceId);
+      const customer = customers.find(c => c._id === (invoice.customer?._id || invoice.customer));
+      
+      let logoBase64 = null;
+      if (companySettings.logo) {
+          logoBase64 = await getBase64ImageFromUrl(`${SERVER_URL}${companySettings.logo}`);
+      }
+
+      const htmlContent = generateInvoiceHTML(invoice, customer, companySettings, paymentSettings, logoBase64);
+      
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(htmlContent);
       printWindow.document.close();
       setTimeout(() => {
         printWindow.print();
       }, 500);
       
-      showAlert('PDF ready for printing', 'success');
+      showAlert('Print window opened', 'success');
   }, [invoices, customers, companySettings, paymentSettings, formatOfficialInvoiceNumber, formatCurrency, currencySymbol, showAlert]);
 
 
@@ -909,7 +1046,7 @@ const handleEditInvoice = useCallback((invoice) => {
   };
 
   return (
-    <div className="p-4">
+    <div className="p-4 d-flex flex-column flex-grow-1">
       {/* Alert (same) */}
       {alert.show && (
         <Alert 
@@ -976,7 +1113,7 @@ const handleEditInvoice = useCallback((invoice) => {
       </Row>
 
       {/* Invoice Table (Currency Updated) */}
-      <Card className="shadow-lg border-0">
+      <Card className="shadow-lg border-0 flex-grow-1 d-flex flex-column">
         <Card.Header className="bg-light py-3 d-flex justify-content-between align-items-center">
           <h5 className="mb-0">All Invoices</h5>
           <Badge bg="primary" className="fs-6 py-2 px-3 fw-bold">
@@ -985,7 +1122,7 @@ const handleEditInvoice = useCallback((invoice) => {
           </Badge>
         </Card.Header>
 
-        <Card.Body className="p-0">
+        <Card.Body className="p-0 flex-grow-1 d-flex flex-column">
           <Row className="p-3">
             <Col md={3}>
               <Form.Select value={filter} onChange={(e) => setFilter(e.target.value)} className="bg-white">
@@ -1027,7 +1164,8 @@ const handleEditInvoice = useCallback((invoice) => {
               </Button>
             </div>
           ) : (
-            <Table responsive hover className="mb-0 table-sm"> 
+            <div className="table-responsive flex-grow-1">
+              <Table hover className="mb-0 table-sm"> 
               <thead className="bg-light">
                 <tr>
                   <th>Invoice #</th>
@@ -1105,7 +1243,8 @@ const handleEditInvoice = useCallback((invoice) => {
                   </tr>
                 ))}
               </tbody>
-            </Table>
+              </Table>
+            </div>
           )}
         </Card.Body>
       </Card>
@@ -1132,9 +1271,12 @@ const handleEditInvoice = useCallback((invoice) => {
             customerSearch={customerSearch}
             setCustomerSearch={setCustomerSearch}
             handleCustomerSearch={handleCustomerSearch}
+
             searchedCustomer={searchedCustomer}
+            setSearchedCustomer={setSearchedCustomer}
             // Removed setShowCustomerForm prop
             handleLocalCustomerPayloadChange={handleLocalCustomerPayloadChange}
+            setLocalCustomerPayload={setLocalCustomerPayload}
             localCustomerPayload={localCustomerPayload}
             handleCreateCustomer={handleCreateCustomer}
             dueDate={dueDate}
@@ -1156,6 +1298,10 @@ const handleEditInvoice = useCallback((invoice) => {
             formatCurrency={formatCurrency}
             currencySymbol={currencySymbol}
             selectedCustomer={selectedCustomer}
+            setSelectedCustomer={setSelectedCustomer}
+            customers={customers}
+            handleDeselectCustomer={handleDeselectCustomer}
+            showAlert={showAlert}
           />
         </Modal.Body>
       </Modal>
@@ -1184,9 +1330,12 @@ const handleEditInvoice = useCallback((invoice) => {
               customerSearch={customerSearch}
               setCustomerSearch={setCustomerSearch}
               handleCustomerSearch={handleCustomerSearch}
+
               searchedCustomer={searchedCustomer}
+              setSearchedCustomer={setSearchedCustomer}
               // Removed setShowCustomerForm prop
               handleLocalCustomerPayloadChange={handleLocalCustomerPayloadChange}
+              setLocalCustomerPayload={setLocalCustomerPayload}
               localCustomerPayload={localCustomerPayload}
               handleCreateCustomer={handleCreateCustomer}
               dueDate={dueDate}
@@ -1208,6 +1357,10 @@ const handleEditInvoice = useCallback((invoice) => {
               formatCurrency={formatCurrency}
               currencySymbol={currencySymbol}
               selectedCustomer={selectedCustomer}
+              setSelectedCustomer={setSelectedCustomer}
+              customers={customers}
+              handleDeselectCustomer={handleDeselectCustomer}
+              showAlert={showAlert}
             />
           </Modal.Body>
       </Modal>
@@ -1239,7 +1392,7 @@ const handleEditInvoice = useCallback((invoice) => {
                             <p>
                                 <strong>Invoice #:</strong> {currentInvoice.sequentialNumber || currentInvoice.invoiceNumber}
                                 <small className="text-muted ms-2 fst-italic">
-                                    ({new Date(currentInvoice.createdAt).toLocaleDateString()})
+                                    ({new Date(currentInvoice.createdAt).toLocaleString()})
                                 </small>
                             </p>
                         </div>
@@ -1343,15 +1496,18 @@ const handleEditInvoice = useCallback((invoice) => {
                         <div className="mt-4">
                             <p>
                                 <strong>Payment Type:</strong> {currentInvoice.paymentType?.toUpperCase() || 'CASH'} <br/>
-                                <strong> Billing Date:</strong> ({new Date(currentInvoice.createdAt).toLocaleDateString()})</p> 
+                                <strong> Billing Date:</strong> ({new Date(currentInvoice.createdAt).toLocaleString()})</p> 
                         </div>
                     </div>
                 ) : <div>No invoice selected</div>}
             </Modal.Body>
             <Modal.Footer>
                 <Button variant="outline-secondary" onClick={() => setShowInvoicePreview(false)}>Close</Button>
-                <Button variant="primary" onClick={() => handleDownloadPDF(currentInvoice._id)}>
+                <Button variant="outline-primary" onClick={() => handlePrintInvoice(currentInvoice._id)}>
                     <Printer size={16} className="me-2" />Print
+                </Button>
+                <Button variant="primary" onClick={() => handleDownloadPDF(currentInvoice._id)}>
+                    <Download size={16} className="me-2" />Download PDF
                 </Button>
             </Modal.Footer>
         </Modal>

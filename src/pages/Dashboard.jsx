@@ -359,7 +359,7 @@ const Dashboard = () => {
               <Card.Header className="bg-white border-0 py-3 d-flex justify-content-between align-items-center">
                 <h5 className="mb-0 fw-bold">Revenue Trend</h5>
                 <div className="d-flex gap-2">
-                  <Button variant="outline-primary" size="sm" className="d-flex align-items-center">
+                  <Button variant="outline-primary" size="sm" className="d-flex align-items-center" onClick={() => navigate('/history')}>
                     <Eye size={14} className="me-1" />
                     Details
                   </Button>
@@ -593,15 +593,16 @@ const Dashboard = () => {
                           </div>
                           <div className="d-flex justify-content-between align-items-center mb-2">
                             <span className="text-success fw-bold">{product.totalQuantity} units</span>
-                            <small className="text-muted">sold</small>
+                            <small className="text-muted fw-bold">{formatCurrency(product.totalRevenue || 0)}</small>
                           </div>
                           <div className="d-flex justify-content-between align-items-center">
                             <small className="text-muted">Stock: {product.stock}</small>
-                            {product.growth && (
+                            {/* Only show growth if it's non-zero/truthy to avoid rendering '0' */}
+                            {product.growth ? (
                               <small className={`fw-semibold ${product.growth > 15 ? 'text-success' : 'text-warning'}`}>
                                 ↗ {product.growth}%
                               </small>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                       </Col>
@@ -620,32 +621,11 @@ const Dashboard = () => {
             {/* Quick Actions & Alerts Section */}
             <Card className="shadow-sm border-0">
               <Card.Header className="bg-white border-0 py-2 d-flex justify-content-between align-items-center">
-                <h5 className="mb-0 fw-bold">Quick Actions & Alerts</h5>
+                <h5 className="mb-0 fw-bold">Quick Alerts</h5>
                 <AlertTriangle size={20} className="text-warning" />
               </Card.Header>
               <Card.Body className="p-4">
-                <Row className="g-3 mb-3">
-                  <Col md={6}>
-                    <div className="p-3 border border-warning rounded h-100 bg-warning bg-opacity-10">
-                      <div className="d-flex align-items-center mb-2">
-                        <Clock size={18} className="text-warning me-2" />
-                        <h6 className="mb-0 fw-bold text-warning">Overdue Invoices</h6>
-                      </div>
-                      <h4 className="fw-bold text-warning mb-1">{urgentActions.overdueInvoices}</h4>
-                      <small className="text-muted">Require immediate attention</small>
-                    </div>
-                  </Col>
-                  <Col md={6}>
-                    <div className="p-3 border border-info rounded h-100 bg-info bg-opacity-10">
-                      <div className="d-flex align-items-center mb-2">
-                        <FileText size={18} className="text-info me-2" />
-                        <h6 className="mb-0 fw-bold text-info">Pending Payments</h6>
-                      </div>
-                      <h4 className="fw-bold text-info mb-1">{urgentActions.pendingPayments}</h4>
-                      <small className="text-muted">Awaiting customer payment</small>
-                    </div>
-                  </Col>
-                </Row>
+               
 
                 <h6 className="fw-bold mb-3">Low Stock Alerts</h6>
                 {urgentActions.lowStockProducts.length > 0 ? (
@@ -671,20 +651,7 @@ const Dashboard = () => {
                   </div>
                 )}
 
-                <div className="d-grid gap-2 mt-4">
-                  <Link to="/invoices?filter=overdue" className="text-decoration-none">
-                    <Button variant="outline-warning" className="w-100 d-flex align-items-center justify-content-center">
-                      <Clock size={16} className="me-2" />
-                      Review Overdue Invoices
-                    </Button>
-                  </Link>
-                  <Link to="/products?filter=low-stock" className="text-decoration-none">
-                    <Button variant="outline-danger" className="w-100 d-flex align-items-center justify-content-center">
-                      <Package size={16} className="me-2" />
-                      Manage Low Stock Items
-                    </Button>
-                  </Link>
-                </div>
+                
               </Card.Body>
             </Card>
           </Col>

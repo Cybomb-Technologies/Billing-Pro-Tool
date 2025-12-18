@@ -150,7 +150,7 @@ const History = () => {
   
   // 1. Sort the transactions by creation date (Ascending, for sequential numbering)
   const sortedTransactions = useMemo(() => {
-    return transactions.slice().sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    return transactions.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [transactions]);
   
   const transactionsList = sortedTransactions; 
