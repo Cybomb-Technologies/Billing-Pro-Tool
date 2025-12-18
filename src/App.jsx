@@ -29,6 +29,12 @@ function ProtectedRoute({ children }) {
 
 
 
+
+function PublicOnlyRoute({ children }) {
+  const { user } = useAuth();
+  return user ? <Navigate to="/dashboard" /> : children;
+}
+
 function App() {
   return (
     
@@ -42,7 +48,7 @@ function App() {
             {/* <Container fluid className="mt-3"> */}
               
               <Routes>
-                <Route path="/login" element={<Login />} />
+                <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
 
                 {/* Protected routes */}
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -59,7 +65,7 @@ function App() {
                 <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
                 <Route path="/Operations" element={<RoleBasedRoute allowedRoles={['staff','admin']}><Operations /></RoleBasedRoute>} />
                 {/* Default redirect */}
-                <Route path="/" element={<Login />} />
+                <Route path="/" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
                 
               </Routes>
             {/* </Container> */}

@@ -1,18 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Button, Row, Col, Table, Modal, Form, Badge, Alert, InputGroup, Dropdown, Spinner } from 'react-bootstrap';
-import { Plus, Search, Edit, Trash2, MoreVertical, Download, User, Phone, Mail, MapPin, Building } from 'lucide-react';
-import axios from 'axios';
-import { API_BASE_URL } from '../config';
-import { useAuth } from '../context/AuthContext'; // FIX: Adjusted import path
+import React, { useState, useEffect } from "react";
+import {
+  Card,
+  Button,
+  Row,
+  Col,
+  Table,
+  Modal,
+  Form,
+  Badge,
+  Alert,
+  InputGroup,
+  Dropdown,
+  Spinner,
+} from "react-bootstrap";
+import {
+  Plus,
+  Search,
+  Edit,
+  Trash2,
+  MoreVertical,
+  Download,
+  User,
+  Phone,
+  Mail,
+  MapPin,
+  Building,
+} from "lucide-react";
+import axios from "axios";
+import { API_BASE_URL } from "../config";
+import { useAuth } from "../context/AuthContext"; // FIX: Adjusted import path
 
 const Customers = () => {
   const { user } = useAuth();
   const [customers, setCustomers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [editingCustomer, setEditingCustomer] = useState(null);
-  const [alert, setAlert] = useState({ show: false, message: '', type: '' });
+  const [alert, setAlert] = useState({ show: false, message: "", type: "" });
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -21,7 +46,7 @@ const Customers = () => {
   }, []);
 
   const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
@@ -29,14 +54,14 @@ const Customers = () => {
     try {
       setLoading(true);
       const response = await axios.get(`${API_BASE_URL}/customers`, {
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
       });
       // Handle both new paginated object and potential old array format ensuring backward compatibility during dev
       const customersData = response.data.customers || response.data || [];
       setCustomers(customersData);
     } catch (error) {
-      console.error('Error fetching customers:', error);
-      showAlert('Error fetching customers', 'danger');
+      console.error("Error fetching customers:", error);
+      showAlert("Error fetching customers", "danger");
     } finally {
       setLoading(false);
     }
@@ -46,51 +71,50 @@ const Customers = () => {
     setSubmitting(true);
     try {
       if (!formData.name.trim() || !formData.phone.trim()) {
-        showAlert('Name and phone number are required', 'warning');
+        showAlert("Name and phone number are required", "warning");
         setSubmitting(false);
         return;
       }
 
       if (formData._id) {
-        await axios.put(
-          `${API_BASE_URL}/customers/${formData._id}`,
-          formData,
-          { headers: getAuthHeaders() }
-        );
-        showAlert('Customer updated successfully!', 'success');
+        await axios.put(`${API_BASE_URL}/customers/${formData._id}`, formData, {
+          headers: getAuthHeaders(),
+        });
+        showAlert("Customer updated successfully!", "success");
       } else {
-        await axios.post(
-          `${API_BASE_URL}/customers`,
-          formData,
-          { headers: getAuthHeaders() }
-        );
-        showAlert('Customer created successfully!', 'success');
+        await axios.post(`${API_BASE_URL}/customers`, formData, {
+          headers: getAuthHeaders(),
+        });
+        showAlert("Customer created successfully!", "success");
       }
 
       await fetchCustomers();
       handleCloseModal();
     } catch (error) {
-      console.error('Error saving customer:', error);
-      const errorMessage = error.response?.data?.message || 'Error saving customer';
-      showAlert(errorMessage, 'danger');
+      console.error("Error saving customer:", error);
+      const errorMessage =
+        error.response?.data?.message || "Error saving customer";
+      showAlert(errorMessage, "danger");
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDeleteCustomer = async (customerId) => {
-    if (!window.confirm('Are you sure you want to delete this customer?')) return;
+    if (!window.confirm("Are you sure you want to delete this customer?"))
+      return;
 
     try {
       await axios.delete(`${API_BASE_URL}/customers/${customerId}`, {
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
       });
       await fetchCustomers();
-      showAlert('Customer deleted successfully!', 'success');
+      showAlert("Customer deleted successfully!", "success");
     } catch (error) {
-      console.error('Error deleting customer:', error);
-      const errorMessage = error.response?.data?.message || 'Error deleting customer';
-      showAlert(errorMessage, 'danger');
+      console.error("Error deleting customer:", error);
+      const errorMessage =
+        error.response?.data?.message || "Error deleting customer";
+      showAlert(errorMessage, "danger");
     }
   };
 
@@ -112,30 +136,30 @@ const Customers = () => {
 
   const showAlert = (message, type) => {
     setAlert({ show: true, message, type });
-    setTimeout(() => setAlert({ show: false, message: '', type: '' }), 4000);
+    setTimeout(() => setAlert({ show: false, message: "", type: "" }), 4000);
   };
 
   const handleExportCSV = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/customers/export/csv`, {
-        responseType: 'blob',
-        headers: getAuthHeaders()
+        responseType: "blob",
+        headers: getAuthHeaders(),
       });
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
-      link.setAttribute('download', 'customers.csv');
+      link.setAttribute("download", "customers.csv");
       document.body.appendChild(link);
       link.click();
       link.remove();
-      showAlert('Customers exported successfully', 'success');
+      showAlert("Customers exported successfully", "success");
     } catch (error) {
-      console.error('Error exporting customers:', error);
-      showAlert('Error exporting customers', 'danger');
+      console.error("Error exporting customers:", error);
+      showAlert("Error exporting customers", "danger");
     }
   };
 
-  const filteredCustomers = customers.filter(customer => {
+  const filteredCustomers = customers.filter((customer) => {
     if (!searchTerm.trim()) return true;
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -151,23 +175,23 @@ const Customers = () => {
   const CustomerModal = ({ show, onHide, isEdit, initialData }) => {
     const [formData, setFormData] = useState({
       ...initialData,
-      address: initialData.address || {} 
+      address: initialData.address || {},
     });
 
     useEffect(() => {
       setFormData({
         ...initialData,
-        address: initialData.address || {}
+        address: initialData.address || {},
       });
     }, [initialData]);
 
     const handleChange = (e) => {
       const { name, value } = e.target;
-      if (name.startsWith('address.')) {
-        const field = name.split('.')[1];
+      if (name.startsWith("address.")) {
+        const field = name.split(".")[1];
         setFormData((prev) => ({
           ...prev,
-          address: { ...prev.address, [field]: value }
+          address: { ...prev.address, [field]: value },
         }));
       } else {
         setFormData((prev) => ({ ...prev, [name]: value }));
@@ -186,7 +210,7 @@ const Customers = () => {
     return (
       <Modal show={show} onHide={onHide} centered size="lg">
         <Modal.Header closeButton>
-          <Modal.Title>{isEdit ? 'Edit Customer' : 'Add Customer'}</Modal.Title>
+          <Modal.Title>{isEdit ? "Edit Customer" : "Add Customer"}</Modal.Title>
         </Modal.Header>
         <Form onSubmit={handleSubmitWrapper}>
           <Modal.Body>
@@ -195,7 +219,9 @@ const Customers = () => {
                 <Form.Group className="mb-3">
                   <Form.Label>Contact Person Name *</Form.Label>
                   <InputGroup>
-                    <InputGroup.Text><User size={16} /></InputGroup.Text>
+                    <InputGroup.Text>
+                      <User size={16} />
+                    </InputGroup.Text>
                     <Form.Control
                       type="text"
                       name="name"
@@ -207,12 +233,14 @@ const Customers = () => {
                   </InputGroup>
                 </Form.Group>
               </Col>
-              
+
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Business/Organization Name</Form.Label>
                   <InputGroup>
-                    <InputGroup.Text><Building size={16} /></InputGroup.Text>
+                    <InputGroup.Text>
+                      <Building size={16} />
+                    </InputGroup.Text>
                     <Form.Control
                       type="text"
                       name="businessName"
@@ -224,12 +252,14 @@ const Customers = () => {
                   </InputGroup>
                 </Form.Group>
               </Col>
-              
+
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Phone *</Form.Label>
                   <InputGroup>
-                    <InputGroup.Text><Phone size={16} /></InputGroup.Text>
+                    <InputGroup.Text>
+                      <Phone size={16} />
+                    </InputGroup.Text>
                     <Form.Control
                       type="tel"
                       name="phone"
@@ -241,12 +271,14 @@ const Customers = () => {
                   </InputGroup>
                 </Form.Group>
               </Col>
-              
+
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Email</Form.Label>
                   <InputGroup>
-                    <InputGroup.Text><Mail size={16} /></InputGroup.Text>
+                    <InputGroup.Text>
+                      <Mail size={16} />
+                    </InputGroup.Text>
                     <Form.Control
                       type="email"
                       name="email"
@@ -257,7 +289,7 @@ const Customers = () => {
                   </InputGroup>
                 </Form.Group>
               </Col>
-              
+
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>GST Number</Form.Label>
@@ -272,9 +304,11 @@ const Customers = () => {
                 </Form.Group>
               </Col>
             </Row>
-            
+
             <Card className="border mt-3">
-              <Card.Header><MapPin size={16} className="me-2" /> Address</Card.Header>
+              <Card.Header>
+                <MapPin size={16} className="me-2" /> Address
+              </Card.Header>
               <Card.Body>
                 <Form.Group className="mb-3">
                   <Form.Label>Street</Form.Label>
@@ -326,9 +360,17 @@ const Customers = () => {
             </Card>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="light" onClick={onHide} disabled={submitting}>Cancel</Button>
+            <Button variant="light" onClick={onHide} disabled={submitting}>
+              Cancel
+            </Button>
             <Button variant="success" type="submit" disabled={submitting}>
-              {submitting ? (isEdit ? 'Updating...' : 'Adding...') : (isEdit ? 'Update' : 'Add')}
+              {submitting
+                ? isEdit
+                  ? "Updating..."
+                  : "Adding..."
+                : isEdit
+                ? "Update"
+                : "Add"}
             </Button>
           </Modal.Footer>
         </Form>
@@ -337,9 +379,13 @@ const Customers = () => {
   };
 
   return (
-    <div className="p-4">
+    <div className="p-4 d-flex flex-column flex-grow-1">
       {alert.show && (
-        <Alert variant={alert.type} dismissible onClose={() => setAlert({ show: false, message: '', type: '' })}>
+        <Alert
+          variant={alert.type}
+          dismissible
+          onClose={() => setAlert({ show: false, message: "", type: "" })}
+        >
           {alert.message}
         </Alert>
       )}
@@ -353,18 +399,25 @@ const Customers = () => {
           <Button variant="outline-primary" onClick={handleExportCSV}>
             <Download size={18} className="me-2" /> Export CSV
           </Button>
-          <Button variant="success" onClick={handleAddCustomer} className="ms-2">
+          <Button
+            variant="success"
+            onClick={handleAddCustomer}
+            className="ms-2"
+          >
             <Plus size={18} className="me-2" /> Add Customer
           </Button>
         </Col>
       </Row>
 
-      <Card>
-        <Card.Header>
+      <Card className="flex-grow-1 d-flex flex-column shadow-sm border-0">
+        <Card.Header className="bg-white py-3">
           <Row>
             <Col md={6}>
               <div className="position-relative">
-                <Search size={18} className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" />
+                <Search
+                  size={18}
+                  className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"
+                />
                 <Form.Control
                   type="text"
                   placeholder="Search by name, phone, or organization..."
@@ -375,17 +428,20 @@ const Customers = () => {
               </div>
             </Col>
             <Col md={6} className="text-end">
-              <Badge bg="light" text="dark">{filteredCustomers.length} customers</Badge>
+              <Badge bg="light" text="dark">
+                {filteredCustomers.length} customers
+              </Badge>
             </Col>
           </Row>
         </Card.Header>
-        <Card.Body className="p-0">
+        <Card.Body className="p-0 flex-grow-1 d-flex flex-column">
           {loading ? (
             <div className="text-center py-5">
               <Spinner animation="border" size="sm" /> Loading...
             </div>
           ) : (
-            <Table responsive hover>
+            <div className="table-responsive flex-grow-1">
+              <Table hover className="mb-0">
               <thead>
                 <tr>
                   <th>Contact Name</th>
@@ -397,29 +453,46 @@ const Customers = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredCustomers.map(customer => (
+                {filteredCustomers.map((customer) => (
                   <tr key={customer._id}>
                     <td>
-                        <div className='fw-semibold'>{customer.name}</div>
-                        {customer.gstNumber && <small className='text-muted'>GST: {customer.gstNumber}</small>}
+                      <div className="fw-semibold">{customer.name}</div>
+                      {customer.gstNumber && (
+                        <small className="text-muted">
+                          GST: {customer.gstNumber}
+                        </small>
+                      )}
                     </td>
                     <td>
-                        <div className='fw-bold'>{customer.businessName || 'Individual'}</div>
+                      <div className="fw-bold">
+                        {customer.businessName || "Individual"}
+                      </div>
                     </td>
                     <td>
-                        <div>{customer.phone}</div>
-                        {customer.email && <small className='text-muted'>{customer.email}</small>}
+                      <div>{customer.phone}</div>
+                      {customer.email && (
+                        <small className="text-muted">{customer.email}</small>
+                      )}
                     </td>
-                    <td>{customer.address?.city || '-'}</td>
-                    <td><Badge bg="success">Active</Badge></td>
+                    <td>{customer.address?.city || "-"}</td>
+                    <td>
+                      <Badge bg="success">Active</Badge>
+                    </td>
                     <td>
                       <Dropdown>
-                        <Dropdown.Toggle variant="light" size="sm"><MoreVertical size={16} /></Dropdown.Toggle>
+                        <Dropdown.Toggle variant="light" size="sm">
+                          <MoreVertical size={16} />
+                        </Dropdown.Toggle>
                         <Dropdown.Menu>
-                          <Dropdown.Item onClick={() => handleEditCustomer(customer)}>
+                          <Dropdown.Item
+                            onClick={() => handleEditCustomer(customer)}
+                          >
                             <Edit size={16} className="me-2" /> Edit
                           </Dropdown.Item>
-                          <Dropdown.Item onClick={() => handleDeleteCustomer(customer._id)} className="text-danger">
+                          <Dropdown.Item
+                            onClick={() => handleDeleteCustomer(customer._id)}
+                            className="text-danger"
+                          >
                             <Trash2 size={16} className="me-2" /> Delete
                           </Dropdown.Item>
                         </Dropdown.Menu>
@@ -429,11 +502,14 @@ const Customers = () => {
                 ))}
                 {filteredCustomers.length === 0 && (
                   <tr>
-                    <td colSpan="6" className="text-center py-4 text-muted">No customers found matching your search.</td>
+                    <td colSpan="6" className="text-center py-4 text-muted">
+                      No customers found matching your search.
+                    </td>
                   </tr>
                 )}
               </tbody>
-            </Table>
+              </Table>
+            </div>
           )}
         </Card.Body>
       </Card>
@@ -444,12 +520,12 @@ const Customers = () => {
         onHide={handleCloseModal}
         isEdit={false}
         initialData={{
-          name: '',
-          businessName: '', // NEW FIELD
-          email: '',
-          phone: '',
-          address: { street: '', city: '', state: '', zipCode: '' },
-          gstNumber: ''
+          name: "",
+          businessName: "", // NEW FIELD
+          email: "",
+          phone: "",
+          address: { street: "", city: "", state: "", zipCode: "" },
+          gstNumber: "",
         }}
       />
       {editingCustomer && (

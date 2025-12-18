@@ -34,7 +34,7 @@ const settingsSchema = new mongoose.Schema({
         beneficiaryName: { type: String },
         upiId: { type: String },
         swiftCode: { type: String },
-        terms: { type: String, default: 'Payment due within 30 days.' }
+        terms: { type: String, default: '' }
     },
     
     updatedAt: {

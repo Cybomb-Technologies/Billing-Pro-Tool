@@ -347,7 +347,7 @@ const Settings = () => {
                           
                           <Form.Group className="mb-4">
                             <Form.Label>Standard Payment Terms</Form.Label>
-                            <Form.Control as="textarea" rows={2} value={payment.terms} onChange={(e) => setPayment({ ...payment, terms: e.target.value })} placeholder="e.g., Payment is due within 30 days of the invoice date." />
+                            <Form.Control as="textarea" rows={2} value={payment.terms} onChange={(e) => setPayment({ ...payment, terms: e.target.value })} placeholder="Enter payment terms (optional)..." />
                             <Form.Text className="text-muted">These terms will appear at the bottom of all generated invoices.</Form.Text>
                           </Form.Group>
 
