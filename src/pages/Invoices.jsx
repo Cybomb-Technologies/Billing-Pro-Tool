@@ -9,10 +9,7 @@ const Invoices = () => {
   const backend = useInvoiceBackend();
 
   return (
-    <div>
-      {/* Pass all backend state/actions and the user object to the frontend */}
       <InvoiceFrontend {...backend} user={user} />
-    </div>
   );
 };
 

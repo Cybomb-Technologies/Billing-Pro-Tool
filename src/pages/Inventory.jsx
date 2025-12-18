@@ -182,7 +182,7 @@ const Inventory = () => {
   }
 
   return (
-    <div className="p-4">
+    <div className="p-4 d-flex flex-column flex-grow-1">
       {/* Alert */}
       {alert.show && (
         <Alert variant={alert.type} className="position-fixed top-0 end-0 m-3" style={{ zIndex: 1050 }}>
@@ -282,7 +282,7 @@ const Inventory = () => {
       </Row>
 
       {/* Main Inventory Table */}
-      <Card className="shadow-sm border-0 mb-4">
+      <Card className="shadow-sm border-0 mb-4 flex-grow-1 d-flex flex-column">
         <Card.Header className="bg-white py-3">
           <Row className="align-items-center">
             <Col md={6}>
@@ -304,8 +304,9 @@ const Inventory = () => {
             </Col>
           </Row>
         </Card.Header>
-        <Card.Body className="p-0">
-          <Table responsive hover className="mb-0">
+        <Card.Body className="p-0 flex-grow-1 d-flex flex-column">
+          <div className="table-responsive flex-grow-1">
+            <Table hover className="mb-0">
             <thead className="bg-light">
               <tr>
                 <th>Product</th>
@@ -386,6 +387,7 @@ const Inventory = () => {
               )}
             </tbody>
           </Table>
+          </div>
         </Card.Body>
       </Card>
 

@@ -166,7 +166,7 @@ const Navigation = ({ children }) => {
         className="flex-grow-1"
         style={{ marginLeft: user ? "var(--sidebar-width)" : "0" }}
       >
-        <div className="min-vh-100" style={{backgroundColor: "var(--bg-body)"}}>{children}</div>
+        <div className="min-vh-100 d-flex flex-column" style={{backgroundColor: "var(--bg-body)"}}>{children}</div>
       </div>
 
       {/* Custom CSS for hover effects */}

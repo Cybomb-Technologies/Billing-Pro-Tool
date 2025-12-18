@@ -141,7 +141,12 @@ const invoiceSchema = new mongoose.Schema({
   },
   dueDate: {
     type: Date,
-    required: true
+    required: false // Make optional
+  },
+  paymentType: { // Moved/Added to root level
+    type: String,
+    enum: ['cash', 'card', 'upi', 'bank_transfer', 'cheque'],
+    default: 'cash'
   },
   notes: String,
   formattedBill: formattedBillSchema,
