@@ -316,9 +316,9 @@ const handleDelete = async () => {
           <p className="text-muted">Manage your product inventory and pricing</p>
         </Col>
         <Col xs="auto" className="d-flex gap-2">
-          <Button variant="outline-secondary" className="d-flex align-items-center" onClick={initialFetch}>
+          {/* <Button variant="outline-secondary" className="d-flex align-items-center" onClick={initialFetch}>
             <RefreshCw size={18} className="me-2" /> Refresh
-          </Button>
+          </Button> */}
           <Button variant="success" className="d-flex align-items-center" onClick={() => setShowModal(true)}>
             <Plus size={18} className="me-2" />
             Add Product

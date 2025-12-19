@@ -4,6 +4,7 @@ import { Plus, Search, Package, AlertTriangle, TrendingUp, Edit, Zap, RefreshCw 
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { Link } from 'react-router-dom';
+import StatCard from '../components/StatCard';
 
 const SETTINGS_API_BASE_URL = `${API_BASE_URL}/settings`;
 
@@ -216,68 +217,36 @@ const Inventory = () => {
       {/* Stats Cards */}
       <Row className="g-4 mb-4">
         <Col md={3}>
-          <Card className="shadow-sm border-0 h-100">
-            <Card.Body className="p-4">
-              <div className="d-flex justify-content-between align-items-start">
-                <div>
-                  <h6 className="text-muted mb-2">Total Products</h6>
-                  <h3 className="fw-bold text-primary">{products.length}</h3>
-                </div>
-                <div className="bg-primary bg-opacity-10 rounded-circle p-3">
-                  <Package size={24} className="text-primary" />
-                </div>
-              </div>
-            </Card.Body>
-          </Card>
+          <StatCard
+            title="Total Products"
+            value={products.length}
+            icon={Package}
+            color="primary"
+          />
         </Col>
         <Col md={3}>
-          <Card className="shadow-sm border-0 h-100">
-            <Card.Body className="p-4">
-              <div className="d-flex justify-content-between align-items-start">
-                <div>
-                  <h6 className="text-muted mb-2">Low Stock</h6>
-                  <h3 className="fw-bold text-warning">{lowStockProducts.length}</h3>
-                </div>
-                <div className="bg-warning bg-opacity-10 rounded-circle p-3">
-                  <AlertTriangle size={24} className="text-warning" />
-                </div>
-              </div>
-            </Card.Body>
-          </Card>
+          <StatCard
+            title="Low Stock"
+            value={lowStockProducts.length}
+            icon={AlertTriangle}
+            color="warning"
+          />
         </Col>
         <Col md={3}>
-          <Card className="shadow-sm border-0 h-100">
-            <Card.Body className="p-4">
-              <div className="d-flex justify-content-between align-items-start">
-                <div>
-                  <h6 className="text-muted mb-2">Out of Stock</h6>
-                  <h3 className="fw-bold text-danger">
-                    {outOfStockProducts.length}
-                  </h3>
-                </div>
-                <div className="bg-danger bg-opacity-10 rounded-circle p-3">
-                  <AlertTriangle size={24} className="text-danger" />
-                </div>
-              </div>
-            </Card.Body>
-          </Card>
+           <StatCard
+            title="Out of Stock"
+            value={outOfStockProducts.length}
+            icon={AlertTriangle} // Or maybe XCircle? AlertTriangle is fine.
+            color="danger"
+          />
         </Col>
         <Col md={3}>
-          <Card className="shadow-sm border-0 h-100">
-            <Card.Body className="p-4">
-              <div className="d-flex justify-content-between align-items-start">
-                <div>
-                  <h6 className="text-muted mb-2">Inventory Value (Cost)</h6>
-                  <h3 className="fw-bold text-success">
-                    {formatCurrency(totalInventoryValue)}
-                  </h3>
-                </div>
-                <div className="bg-success bg-opacity-10 rounded-circle p-3">
-                  <TrendingUp size={24} className="text-success" />
-                </div>
-              </div>
-            </Card.Body>
-          </Card>
+          <StatCard
+            title="Inventory Value (Cost)"
+            value={formatCurrency(totalInventoryValue)}
+            icon={TrendingUp}
+            color="success"
+          />
         </Col>
       </Row>
 

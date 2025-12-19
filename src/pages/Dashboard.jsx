@@ -3,6 +3,7 @@ import { Row, Col, Card, Button, Table, Badge, Spinner, Alert, ProgressBar } fro
 import { TrendingUp, Users, Package, FileText, Plus, LogOut, Truck, DollarSign, Clock, UsersRound, ArrowUpRight, Eye, ShoppingCart, Activity, Zap, AlertTriangle, Calendar, Download, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
+import StatCard from '../components/StatCard';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Line } from 'react-chartjs-2';
@@ -151,45 +152,7 @@ const Dashboard = () => {
     navigate('/login');
   };
 
-  const StatCard = ({ title, value, icon: Icon, color = 'primary', subtitle, trend, onClick }) => (
-    <Card 
-      className={`h-100 border-0 stat-card ${onClick ? 'clickable' : ''}`}
-      onClick={onClick}
-      style={{ 
-        transition: 'all 0.3s ease',
-        backgroundColor: "var(--bg-surface)",
-        boxShadow: "var(--shadow-sm)",
-        cursor: onClick ? 'pointer' : 'default'
-      }}
-    >
-      <Card.Body className="p-4">
-        <div className="d-flex align-items-center justify-content-between mb-3">
-          <div className={`rounded-circle p-3 d-flex align-items-center justify-content-center`} 
-               style={{backgroundColor: `var(--${color}-light)`, color: `var(--${color}-color)`}}>
-             {/* Note: We need to ensure --primary-light etc are defined or use opacity */}
-             {/* Fallback to simple opacity if variables aren't perfect yet, but let's try to stick to theme */}
-            <Icon size={24} />
-          </div>
-          {trend && (
-            <div className={`trend-indicator`} style={{color: trend > 0 ? "var(--success-color)" : "var(--danger-color)"}}>
-              <TrendingUp size={16} className={trend > 0 ? '' : 'rotate-180'} />
-              <small className="fw-bold ms-1">{Math.abs(trend)}%</small>
-            </div>
-          )}
-        </div>
-        <h3 className="fw-bold mb-2" style={{color: "var(--text-primary)"}}>{value}</h3>
-        <h6 className="mb-1" style={{color: "var(--text-secondary)"}}>{title}</h6>
-        {subtitle && <small style={{color: "var(--text-muted)"}}>{subtitle}</small>}
-        <div className="stat-progress mt-3">
-          <ProgressBar 
-            now={75} 
-            variant={color} 
-            style={{ height: '4px' }}
-          />
-        </div>
-      </Card.Body>
-    </Card>
-  );
+
 
   const { chartData, urgentActions } = useMemo(() => {
     

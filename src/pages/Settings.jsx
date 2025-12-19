@@ -85,7 +85,8 @@ const Settings = () => {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-      await axios.put(`${API_BASE_URL}/settings`, { [type]: data }, { headers });
+      // UPDATED: Use PATCH and specific route /api/settings/:category
+      await axios.patch(`${API_BASE_URL}/settings/${type}`, data, { headers });
       alert(`${type === 'company' ? 'Company Info' : 'Payment Settings'} saved successfully!`);
       // Update global context if needed? For now just local.
     } catch (error) {

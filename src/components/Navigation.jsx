@@ -36,6 +36,7 @@ const Navigation = ({ children }) => {
   const fullMenuItems = [
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { path: "/customers", label: "Customers", icon: Users, roles: ['admin', 'staff'] },
+    { path: "/billing", label: "Billing", icon: FileText, roles: ['admin', 'staff'] },
     { path: "/invoices", label: "Invoices", icon: FileText, roles: ['admin', 'staff'] },
     { path: "/products", label: "Products", icon: Package, roles: ['admin', 'staff'] },
     { path: "/inventory", label: "Inventory", icon: Archive, roles: ['admin', 'staff'] },
@@ -170,7 +171,7 @@ const Navigation = ({ children }) => {
       </div>
 
       {/* Custom CSS for hover effects */}
-      <style jsx>{`
+      <style jsx="true">{`
         .hover-custom:hover {
           background-color: rgba(255, 255, 255, 0.1) !important;
           color: #ffffff !important;
