@@ -1,13 +1,15 @@
 // InvoiceFrontend.jsx
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Table, Button, Card, Row, Col, Modal, Form, Badge, Dropdown, Alert, InputGroup, Spinner, ListGroup
 } from 'react-bootstrap';
 import {
-  Plus, Download, MoreVertical, Eye, Printer, Edit, FileText, Search, X, Trash2, Box, Building, User as UserIcon // Renamed User icon for clarity
+  Plus, Download, MoreVertical, Eye, Printer, Edit, FileText, Search, X, Trash2, Box, Building, User as UserIcon, TrendingUp, Clock, AlertTriangle // Renamed User icon for clarity
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext'; // FIX: Adjusted import path
+import StatCard from '../../components/StatCard';
 import { API_BASE_URL, SERVER_URL } from '../../config';
 import html2pdf from 'html2pdf.js';
 
@@ -499,6 +501,7 @@ export default function InvoiceFrontend(props) {
   } = props;
   
   const { user } = useAuth(); // Assume AuthContext is available
+  const navigate = useNavigate();
 
   // --- Currency & Settings Helpers ---
   const companySettings = settings.company || {};
@@ -535,7 +538,7 @@ export default function InvoiceFrontend(props) {
   const [searchTerm, setSearchTerm] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [searchedCustomer, setSearchedCustomer] = useState(null);
-  const [showModal, setShowModal] = useState(false);
+
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
   const [currentInvoice, setCurrentInvoice] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -767,33 +770,7 @@ export default function InvoiceFrontend(props) {
       };
   }, [totals, invoiceItems, showAlert, invoices.length, selectedCustomer, dueDate, notes, paymentType, user?._id]);
 
-  const handleCreateInvoiceClick = useCallback(async () => {
-    const finalDueDate = new Date().toISOString().split('T')[0]; // dummy or optional
 
-    if (!selectedCustomer || invoiceItems.length === 0) {
-        showAlert('Please ensure a customer is selected and items are added.', 'warning');
-        return;
-    }
-    
-    const stockError = invoiceItems.some(item => Number(item.quantity) > getProductStock(item.product));
-    if (stockError) {
-        showAlert('Cannot create invoice: Quantity exceeds available stock for one or more items.', 'danger');
-        return;
-    }
-
-    const invoicePayload = buildInvoicePayload(null); 
-    if (!invoicePayload) return;
-
-    // invoicePayload.dueDate = finalDueDate; // Removed assignment
-
-    try {
-      await createInvoice(invoicePayload);
-      setShowModal(false);
-      resetFormLocal();
-    } catch (e) {
-        // Error handling in backend hook
-    }
-  }, [dueDate, selectedCustomer, invoiceItems, getProductStock, showAlert, buildInvoicePayload, createInvoice, resetFormLocal]);
 
   const handleUpdateInvoiceClick = useCallback(async () => {
     if (!editingInvoice) return;
@@ -924,7 +901,9 @@ const handleEditInvoice = useCallback((invoice) => {
                     <th>#</th>
                     <th>Description (HSN)</th>
                     <th>Qty</th>
-                    <th>Price (${currencySymbol})</th>
+                    <th>Price</th>
+                    <th>Disc %</th>
+                    <th>Taxable Value</th>
                     <th>Tax Rate</th>
                     <th>Amount (${currencySymbol})</th>
                   </tr>
@@ -935,6 +914,8 @@ const handleEditInvoice = useCallback((invoice) => {
                       <td>${index + 1}</td>
                       <td>${item.description || `Item ${index + 1}`} ${item.hsnCode ? `(${item.hsnCode})` : ''}</td>
                       <td>${item.quantity}</td>
+                      <td>${formatCurrency(item.mrp || item.price)}</td>
+                      <td>${item.discount || 0}%</td>
                       <td>${formatCurrency(item.price)}</td>
                       <td>${item.taxRate || '0'}%</td>
                       <td class="text-right">${formatCurrency((Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + (Number(item.taxRate) || 0) / 100))}</td>
@@ -948,24 +929,60 @@ const handleEditInvoice = useCallback((invoice) => {
               <table style="width: 50%; margin-left: auto;">
                 <tbody>
                   <tr>
-                    <td><strong>Subtotal</strong></td>
+                    <td><strong>Taxable Subtotal</strong></td>
                     <td class="text-right">${formatCurrency(invoice.subtotal)}</td>
                   </tr>
-                  ${invoice.taxDetails?.gstType === 'cgst_sgst' ? `
-                    <tr>
-                      <td>CGST (${invoice.taxDetails?.cgst?.toFixed(2)}%)</td>
-                      <td class="text-right">${formatCurrency(invoice.taxDetails?.cgstAmount)}</td>
-                    </tr>
-                    <tr>
-                      <td>SGST (${invoice.taxDetails?.sgst?.toFixed(2)}%)</td>
-                      <td class="text-right">${formatCurrency(invoice.taxDetails?.sgstAmount)}</td>
-                    </tr>
-                  ` : `
-                    <tr>
-                      <td>IGST (${invoice.taxDetails?.igst?.toFixed(2)}%)</td>
-                      <td class="text-right">${formatCurrency(invoice.taxDetails?.igstAmount)}</td>
-                    </tr>
-                  `}
+                  ${(() => {
+                    // Fallback to average tax display if breakdown missing (backward compatibility)
+                    if (!invoice.breakdown || invoice.breakdown.length === 0) {
+                        if (invoice.taxDetails?.gstType === 'cgst_sgst') {
+                            return `
+                                <tr>
+                                  <td>CGST (${invoice.taxDetails?.cgst?.toFixed(2)}%)</td>
+                                  <td class="text-right">${formatCurrency(invoice.taxDetails?.cgstAmount)}</td>
+                                </tr>
+                                <tr>
+                                  <td>SGST (${invoice.taxDetails?.sgst?.toFixed(2)}%)</td>
+                                  <td class="text-right">${formatCurrency(invoice.taxDetails?.sgstAmount)}</td>
+                                </tr>
+                            `;
+                        } else {
+                            return `
+                                <tr>
+                                  <td>IGST (${invoice.taxDetails?.igst?.toFixed(2)}%)</td>
+                                  <td class="text-right">${formatCurrency(invoice.taxDetails?.igstAmount)}</td>
+                                </tr>
+                            `;
+                        }
+                    }
+
+                    // Render breakdown by rate
+                    return invoice.breakdown.map(b => {
+                        const rate = Number(b.rate);
+                        const tax = Number(b.tax);
+                        if (invoice.taxDetails?.gstType === 'cgst_sgst') {
+                            const halfRate = rate / 2;
+                            const halfTax = tax / 2;
+                            return `
+                                <tr>
+                                  <td>CGST (${halfRate}%)</td>
+                                  <td class="text-right">${formatCurrency(halfTax)}</td>
+                                </tr>
+                                <tr>
+                                  <td>SGST (${halfRate}%)</td>
+                                  <td class="text-right">${formatCurrency(halfTax)}</td>
+                                </tr>
+                            `;
+                        } else {
+                            return `
+                                <tr>
+                                  <td>IGST (${rate}%)</td>
+                                  <td class="text-right">${formatCurrency(tax)}</td>
+                                </tr>
+                            `;
+                        }
+                    }).join('');
+                  })()}
                   <tr class="total-row">
                     <td><strong>Total Amount</strong></td>
                     <td class="text-right"><strong>${formatCurrency(invoice.total)}</strong></td>
@@ -1070,45 +1087,49 @@ const handleEditInvoice = useCallback((invoice) => {
           <Button variant="outline-primary" className="d-flex align-items-center fw-semibold" onClick={exportInvoices}>
             <Download size={18} className="me-2" /> Export
           </Button>
-          <Button variant="primary" className="d-flex align-items-center fw-semibold" onClick={() => setShowModal(true)}>
+          <Button variant="primary" className="d-flex align-items-center fw-semibold" onClick={() => navigate('/billing')}>
             <Plus size={18} className="me-2" /> New Invoice
           </Button>
         </Col>
       </Row>
       
       {/* Dashboard Summary Cards (Currency Updated) */}
-      <Row className="mb-4 g-3">
-        <Col md={3}>
-          <Card className="shadow-sm border-start border-4 border-primary h-100">
-            <Card.Body>
-              <h6 className="text-muted text-uppercase mb-2">Total Invoices</h6>
-              <h3 className="mb-0">{invoiceSummary.totalCount}</h3>
-            </Card.Body>
-          </Card>
+      <Row className="mb-4 g-4">
+        <Col lg={3} md={6}>
+          <StatCard
+            title="Total Invoices"
+            value={invoiceSummary.totalCount}
+            subtitle="All time created"
+            icon={FileText}
+            color="primary"
+          />
         </Col>
-        <Col md={3}>
-          <Card className="shadow-sm border-start border-4 border-success h-100">
-            <Card.Body>
-              <h6 className="text-muted text-uppercase mb-2">Total Revenue</h6>
-              <h3 className="mb-0">{formatCurrency(invoiceSummary.totalRevenue)}</h3>
-            </Card.Body>
-          </Card>
+        <Col lg={3} md={6}>
+          <StatCard
+            title="Total Revenue"
+            value={formatCurrency(invoiceSummary.totalRevenue)}
+            subtitle="Total value generated"
+            icon={TrendingUp}
+            color="success"
+          />
         </Col>
-        <Col md={3}>
-          <Card className="shadow-sm border-start border-4 border-warning h-100">
-            <Card.Body>
-              <h6 className="text-muted text-uppercase mb-2">Pending/Draft</h6>
-              <h3 className="mb-0">{invoiceSummary.pendingCount}</h3>
-            </Card.Body>
-          </Card>
+        <Col lg={3} md={6}>
+          <StatCard
+            title="Pending/Draft"
+            value={invoiceSummary.pendingCount}
+            subtitle="Awaiting payment"
+            icon={Clock}
+            color="warning"
+          />
         </Col>
-        <Col md={3}>
-          <Card className="shadow-sm border-start border-4 border-danger h-100">
-            <Card.Body>
-              <h6 className="text-muted text-uppercase mb-2">Overdue</h6>
-              <h3 className="mb-0">{invoiceSummary.overdueCount}</h3>
-            </Card.Body>
-          </Card>
+        <Col lg={3} md={6}>
+          <StatCard
+            title="Overdue"
+            value={invoiceSummary.overdueCount}
+            subtitle="Action required"
+            icon={AlertTriangle}
+            color="danger"
+          />
         </Col>
       </Row>
 
@@ -1159,7 +1180,7 @@ const handleEditInvoice = useCallback((invoice) => {
               <FileText size={48} className="text-muted mb-3" />
               <h5 className="text-muted">No invoices found</h5>
               <p className="text-muted">Try adjusting your filters or search term.</p>
-              <Button variant="primary" onClick={() => setShowModal(true)}>
+              <Button variant="primary" onClick={() => navigate('/billing')}>
                 <Plus size={18} className="me-2" /> Create New Invoice
               </Button>
             </div>
@@ -1250,61 +1271,7 @@ const handleEditInvoice = useCallback((invoice) => {
       </Card>
 
 
-      {/* Create Invoice Modal */}
-      <Modal 
-        show={showModal} 
-        onHide={() => { setShowModal(false); resetFormLocal(); }} 
-        size="xl" 
-        centered 
-        scrollable
-      >
-        <Modal.Header closeButton className="border-0"> 
-          <Modal.Title className="h4 text-primary fw-bold">Create New Invoice</Modal.Title>
-        </Modal.Header>
-        <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-          <InvoiceForm
-            onSubmit={handleCreateInvoiceClick}
-            onCancel={() => { setShowModal(false); resetFormLocal(); }}
-            submitButtonText="Create Invoice"
-            
-            // Pass necessary props (state/handlers) to the memoized form
-            customerSearch={customerSearch}
-            setCustomerSearch={setCustomerSearch}
-            handleCustomerSearch={handleCustomerSearch}
 
-            searchedCustomer={searchedCustomer}
-            setSearchedCustomer={setSearchedCustomer}
-            // Removed setShowCustomerForm prop
-            handleLocalCustomerPayloadChange={handleLocalCustomerPayloadChange}
-            setLocalCustomerPayload={setLocalCustomerPayload}
-            localCustomerPayload={localCustomerPayload}
-            handleCreateCustomer={handleCreateCustomer}
-            dueDate={dueDate}
-            setDueDate={setDueDate}
-            paymentType={paymentType}
-            setPaymentType={setPaymentType}
-            paymentTypes={paymentTypes}
-            addItem={addItem}
-            removeItem={removeItem}
-            updateItem={updateItem}
-            invoiceItems={invoiceItems}
-            handleProductSelect={handleProductSelect}
-            handleItemFieldChange={handleItemFieldChange}
-            products={products}
-            getProductStock={getProductStock}
-            notes={notes}
-            setNotes={setNotes}
-            totals={totals}
-            formatCurrency={formatCurrency}
-            currencySymbol={currencySymbol}
-            selectedCustomer={selectedCustomer}
-            setSelectedCustomer={setSelectedCustomer}
-            customers={customers}
-            handleDeselectCustomer={handleDeselectCustomer}
-            showAlert={showAlert}
-          />
-        </Modal.Body>
-      </Modal>
 
       {/* Edit Invoice Modal */}
       <Modal 
@@ -1433,7 +1400,9 @@ const handleEditInvoice = useCallback((invoice) => {
                                     <th>#</th>
                                     <th>Description</th>
                                     <th>Qty</th>
-                                    <th>Price ({currencySymbol})</th>
+                                    <th>Price</th>
+                                    <th>Disc %</th>
+                                    <th>Taxable Value</th>
                                     <th>Tax %</th> 
                                     <th>Amount ({currencySymbol})</th>
                                 </tr>
@@ -1444,6 +1413,8 @@ const handleEditInvoice = useCallback((invoice) => {
                                         <td>{i+1}</td>
                                         <td>{it.description}</td>
                                         <td>{it.quantity}</td>
+                                        <td>{formatCurrency(it.mrp || it.price)}</td>
+                                        <td>{it.discount || 0}%</td>
                                         <td>{formatCurrency(it.price)}</td>
                                         <td>{it.taxRate ?? 'N/A'}</td> 
                                         <td>{formatCurrency((it.quantity||0)*(it.price||0))}</td>
@@ -1458,26 +1429,64 @@ const handleEditInvoice = useCallback((invoice) => {
                                 <Table className='table-sm'>
                                     <tbody>
                                         <tr>
-                                            <td><strong>Subtotal</strong></td>
+                                            <td><strong>Taxable Subtotal</strong></td>
                                             <td className="text-end">{formatCurrency(currentInvoice.subtotal)}</td>
                                         </tr>
-                                        {currentInvoice.taxDetails?.gstType === 'cgst_sgst' && currentInvoice.taxDetails?.cgstAmount > 0 ? (
-                                            <>
-                                                <tr>
-                                                    <td>CGST ({currentInvoice.taxDetails?.cgst?.toFixed(2)}%)</td>
-                                                    <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.cgstAmount)}</td>
-                                                </tr>
-                                                <tr>
-                                                    <td>SGST ({currentInvoice.taxDetails?.sgst?.toFixed(2)}%)</td>
-                                                    <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.sgstAmount)}</td>
-                                                </tr>
-                                            </>
-                                        ) : currentInvoice.taxDetails?.totalTax > 0 ? (
-                                            <tr>
-                                                <td>IGST/Total Tax</td>
-                                                <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.totalTax)}</td>
-                                            </tr>
-                                        ) : null}
+                                        {(() => {
+                                            if (!currentInvoice.breakdown || currentInvoice.breakdown.length === 0) {
+                                                // Fallback
+                                                if (currentInvoice.taxDetails?.gstType === 'cgst_sgst' && currentInvoice.taxDetails?.cgstAmount > 0) {
+                                                    return (
+                                                        <>
+                                                            <tr>
+                                                                <td>CGST ({currentInvoice.taxDetails?.cgst?.toFixed(2)}%)</td>
+                                                                <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.cgstAmount)}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td>SGST ({currentInvoice.taxDetails?.sgst?.toFixed(2)}%)</td>
+                                                                <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.sgstAmount)}</td>
+                                                            </tr>
+                                                        </>
+                                                    );
+                                                } else if (currentInvoice.taxDetails?.totalTax > 0) {
+                                                    return (
+                                                        <tr>
+                                                            <td>IGST/Total Tax</td>
+                                                            <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.totalTax)}</td>
+                                                        </tr>
+                                                    );
+                                                }
+                                                return null;
+                                            }
+
+                                            return currentInvoice.breakdown.map((b, idx) => {
+                                                const rate = Number(b.rate);
+                                                const tax = Number(b.tax);
+                                                if (currentInvoice.taxDetails?.gstType === 'cgst_sgst') {
+                                                    const halfRate = rate / 2;
+                                                    const halfTax = tax / 2;
+                                                    return (
+                                                        <React.Fragment key={idx}>
+                                                            <tr>
+                                                                <td>CGST ({halfRate}%)</td>
+                                                                <td className="text-end">{formatCurrency(halfTax)}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td>SGST ({halfRate}%)</td>
+                                                                <td className="text-end">{formatCurrency(halfTax)}</td>
+                                                            </tr>
+                                                        </React.Fragment>
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <tr key={idx}>
+                                                            <td>IGST ({rate}%)</td>
+                                                            <td className="text-end">{formatCurrency(tax)}</td>
+                                                        </tr>
+                                                    );
+                                                }
+                                            });
+                                        })()}
                                         <tr className="fw-bold fs-5 text-success">
                                             <td>Total</td>
                                             <td className="text-end"><strong>{formatCurrency(currentInvoice.total)}</strong></td>

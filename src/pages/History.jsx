@@ -1,7 +1,8 @@
 // History.jsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, Table, Row, Col, Form, Badge, Button, Alert } from 'react-bootstrap';
-import { Calendar, Filter, Download } from 'lucide-react';
+import { Calendar, Filter, Download, DollarSign, FileText, Clock } from 'lucide-react';
+import StatCard from '../components/StatCard';
 import axios from 'axios';
 
 import { API_BASE_URL } from '../config';
@@ -166,8 +167,34 @@ const History = () => {
   const pendingTransactionsCount = useMemo(() => 
     transactionsList.filter(t => t.status === 'pending').length
   , [transactionsList]);
+
+  const totalPendingAmount = useMemo(() => 
+    transactionsList.filter(t => t.status === 'pending').reduce((sum, t) => sum + (t.total || 0), 0)
+  , [transactionsList]);
   
   // --- Action Handlers ---
+  
+  const handleStatusChange = async (invoiceId, newStatus) => {
+    // Optimistic Update
+    const originalTransactions = [...transactions];
+    setTransactions(prev => prev.map(t => 
+        t._id === invoiceId ? { ...t, status: newStatus } : t
+    ));
+
+    try {
+        const token = localStorage.getItem('token');
+        await axios.patch(`${API_BASE_URL}/invoices/${invoiceId}/status`, 
+            { status: newStatus },
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+        // Success - no further action needed as we updated optimistically
+    } catch (err) {
+        console.error("Failed to update status:", err);
+        // Revert on failure
+        setTransactions(originalTransactions);
+        alert("Failed to update status. Please try again.");
+    }
+  };
 
   const handleApplyFilter = () => {
     fetchTransactions();
@@ -226,37 +253,31 @@ const History = () => {
       {/* Stats Cards */}
       <Row className="g-4 mb-4">
         <Col md={4}>
-          <Card className="text-center shadow-sm border-0 h-100">
-            <Card.Body className="p-4">
-              <div className="bg-success bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style={{ width: '60px', height: '60px' }}>
-                <span className="text-success fw-bold fs-4">{formatCurrency(totalRevenue)}</span>
-              </div>
-              <h5 className="fw-semibold">Total Revenue</h5>
-              <p className="text-muted mb-0">All paid transactions</p>
-            </Card.Body>
-          </Card>
+          <StatCard
+            title="Total Revenue"
+            value={formatCurrency(totalRevenue)}
+            subtitle="All paid transactions"
+            icon={DollarSign}
+            color="success"
+          />
         </Col>
         <Col md={4}>
-          <Card className="text-center shadow-sm border-0 h-100">
-            <Card.Body className="p-4">
-              <div className="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style={{ width: '60px', height: '60px' }}>
-                <span className="text-primary fw-bold fs-4">{transactionsList.length}</span>
-              </div>
-              <h5 className="fw-semibold">Total Transactions</h5>
-              <p className="text-muted mb-0">Filtered transaction count</p>
-            </Card.Body>
-          </Card>
+          <StatCard
+            title="Total Transactions"
+            value={transactionsList.length}
+            subtitle="Filtered transaction count"
+            icon={FileText}
+            color="primary"
+          />
         </Col>
         <Col md={4}>
-          <Card className="text-center shadow-sm border-0 h-100">
-            <Card.Body className="p-4">
-              <div className="bg-warning bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style={{ width: '60px', height: '60px' }}>
-                <span className="text-warning fw-bold fs-4">{pendingTransactionsCount}</span>
-              </div>
-              <h5 className="fw-semibold">Pending</h5>
-              <p className="text-muted mb-0">Awaiting payment</p>
-            </Card.Body>
-          </Card>
+          <StatCard
+            title="Outstanding Amount"
+            value={formatCurrency(totalPendingAmount)}
+            subtitle={`${pendingTransactionsCount} invoices pending`}
+            icon={Clock}
+            color="warning"
+          />
         </Col>
       </Row>
       
@@ -379,9 +400,18 @@ const History = () => {
                       {formatCurrency(transaction.total)}
                     </td>
                     <td>
-                      <Badge bg={getStatusVariant(transaction.status)} className="rounded-pill">
-                        {transaction.status}
-                      </Badge>
+                      <Form.Select 
+                        size="sm"
+                        value={transaction.status}
+                        onChange={(e) => handleStatusChange(transaction._id, e.target.value)}
+                        className={`border-${getStatusVariant(transaction.status)} text-${getStatusVariant(transaction.status)} fw-bold bg-${getStatusVariant(transaction.status)} bg-opacity-10`}
+                        style={{width: 'auto', minWidth: '100px', fontSize: '0.875rem'}}
+                      >
+                         <option value="paid" className="text-success fw-bold">Paid</option>
+                         <option value="pending" className="text-warning fw-bold">Pending</option>
+                         <option value="overdue" className="text-danger fw-bold">Overdue</option>
+                         <option value="draft" className="text-secondary fw-bold">Draft</option>
+                      </Form.Select>
                     </td>
                     <td className="text-muted">
                       {new Date(transaction.createdAt).toLocaleDateString()}

@@ -208,7 +208,7 @@ export default function useInvoiceBackend() {
 
   const addItem = () => {
     setInvoiceItems(prev => [...prev, {
-      product: '', description: '', hsnCode: '', quantity: 1, price: 0, taxRate: 18
+      product: '', description: '', hsnCode: '', quantity: 1, price: 0, mrp: 0, discount: 0, taxRate: 18
     }]);
   };
 
@@ -224,7 +224,15 @@ export default function useInvoiceBackend() {
       if (field === 'product' && value) {
         const found = products.find(p => p._id === value);
         if (found) {
-          copy[index].price = typeof found.price === 'number' ? found.price : parseFloat(found.price || 0);
+          // Default logic: Price = Selling Price (from DB). 
+          // If MRP exists, set it. Discount = MRP - Price (initially).
+          // Or just 0 discount initially.
+          const dbPrice = typeof found.price === 'number' ? found.price : parseFloat(found.price || 0);
+          const dbMrp = typeof found.mrp === 'number' ? found.mrp : (dbPrice * 1.0); // Fallback MRP = Price if missing
+
+          copy[index].price = dbPrice; 
+          copy[index].mrp = dbMrp;
+          copy[index].discount = 0; // Reset discount on product select
           copy[index].description = found.description || found.name || copy[index].description;
           copy[index].hsnCode = found.hsnCode || '';
           copy[index].taxRate = found.taxRate ?? 18; 
@@ -237,37 +245,58 @@ export default function useInvoiceBackend() {
           }
         }
       }
-
       return copy;
     });
   };
 
   const calculateTotalsForItems = useCallback((items = invoiceItems) => {
-    let subtotal = 0;
+    let subtotal = 0; // Taxable Value
     let totalTax = 0;
+    const breakdown = {}; // { '18': { taxable: 0, tax: 0 } }
     
     items.forEach(it => {
-      const price = Number(it.price) || 0;
+      const price = Number(it.price) || 0; 
       const quantity = Number(it.quantity) || 0;
       const taxRate = Number(it.taxRate) || 0;
-      const itemSubtotal = price * quantity;
       
-      subtotal += itemSubtotal;
-      totalTax += itemSubtotal * (taxRate / 100);
+      const itemTaxableValue = price * quantity;
+      const itemTaxAmount = itemTaxableValue * (taxRate / 100);
+      
+      subtotal += itemTaxableValue;
+      totalTax += itemTaxAmount;
+      
+      if (!breakdown[taxRate]) {
+          breakdown[taxRate] = { taxable: 0, tax: 0 };
+      }
+      breakdown[taxRate].taxable += itemTaxableValue;
+      breakdown[taxRate].tax += itemTaxAmount;
     });
 
     const total = subtotal + totalTax;
     
+    // Sort rates for consistent display
+    const sortedRates = Object.keys(breakdown).map(Number).sort((a,b) => a-b);
+    const sortedBreakdown = sortedRates.map(rate => ({ 
+        rate, 
+        ...breakdown[rate] 
+    }));
+
     const avgTaxRate = (subtotal > 0) ? (totalTax / subtotal) * 100 : 0;
-    const cgstAmount = totalTax / 2;
-    const sgstAmount = totalTax / 2;
-    const igstAmount = totalTax;
     
     return { 
-      subtotal, cgstAmount, sgstAmount, igstAmount, totalTax, total,
+      subtotal, 
+      cgstAmount: totalTax / 2, 
+      sgstAmount: totalTax / 2, 
+      igstAmount: totalTax, 
+      totalTax, 
+      total,
+      breakdown: sortedBreakdown, // Passing the breakdown array
       taxDetails: {
-        cgst: avgTaxRate / 2, sgst: avgTaxRate / 2, igst: avgTaxRate,
-        gstType: totalTax > 0 ? 'cgst_sgst' : 'none' 
+        cgst: avgTaxRate / 2, 
+        sgst: avgTaxRate / 2, 
+        igst: avgTaxRate,
+        gstType: totalTax > 0 ? 'cgst_sgst' : 'none',
+        totalTax
       }
     };
   }, [invoiceItems]);

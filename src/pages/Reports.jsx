@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, Row, Col, Spinner, Alert, Button, Badge, Table } from 'react-bootstrap';
 import axios from 'axios';
-import { TrendingUp, DollarSign, Clock, Package, BarChart, RefreshCw, ChevronUp, ChevronDown } from 'lucide-react';
+import { TrendingUp, DollarSign, Clock, Package, BarChart, RefreshCw, ChevronUp, ChevronDown, Users, CheckCircle, FileText } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import StatCard from '../components/StatCard';
 
 // API Endpoints
 const SETTINGS_API_BASE_URL = `${API_BASE_URL}/settings`;
@@ -312,43 +313,28 @@ const Reports = ({ userRole = 'admin' }) => {
           <h3 className="h5 mb-3 text-primary">Financial Summary (Admin View)</h3>
           <Row className="g-4 mb-5">
             <Col md={4}>
-              <Card className="shadow-sm border-0 border-start border-5 border-success h-100">
-                <Card.Body>
-                  <div className="d-flex justify-content-between align-items-center">
-                    <div>
-                      <h6 className="text-success text-uppercase mb-2">Total Revenue (Paid)</h6>
-                      <h3 className="fw-bold">{formatCurrency(totalRevenue)}</h3> 
-                    </div>
-                    <DollarSign size={36} className="text-success opacity-75" />
-                  </div>
-                </Card.Body>
-              </Card>
+              <StatCard
+                title="Total Revenue (Paid)"
+                value={formatCurrency(totalRevenue)}
+                icon={DollarSign}
+                color="success"
+              />
             </Col>
             <Col md={4}>
-              <Card className="shadow-sm border-0 border-start border-5 border-warning h-100">
-                <Card.Body>
-                  <div className="d-flex justify-content-between align-items-center">
-                    <div>
-                      <h6 className="text-warning text-uppercase mb-2">Outstanding A/R</h6>
-                      <h3 className="fw-bold">{formatCurrency(outstanding)}</h3>
-                    </div>
-                    <Clock size={36} className="text-warning opacity-75" />
-                  </div>
-                </Card.Body>
-              </Card>
+              <StatCard
+                 title="Outstanding A/R"
+                 value={formatCurrency(outstanding)}
+                 icon={Clock}
+                 color="warning"
+              />
             </Col>
             <Col md={4}>
-              <Card className="shadow-sm border-0 border-start border-5 border-primary h-100">
-                <Card.Body>
-                  <div className="d-flex justify-content-between align-items-center">
-                    <div>
-                      <h6 className="text-muted text-uppercase mb-2">Total Transactions</h6>
-                      <h3 className="fw-bold">{invoices.length}</h3>
-                    </div>
-                    <BarChart size={36} className="text-primary opacity-75" />
-                  </div>
-                </Card.Body>
-              </Card>
+              <StatCard
+                 title="Total Transactions"
+                 value={invoices.length}
+                 icon={BarChart}
+                 color="primary"
+              />
             </Col>
           </Row>
         </>
@@ -358,32 +344,44 @@ const Reports = ({ userRole = 'admin' }) => {
       {userRole === 'admin' && (
         <>
           <h3 className="h5 mb-3 text-primary">Staff Activity Overview</h3>
-          <Card className="shadow-sm border-0 mb-5">
-              <Card.Body>
-                  <Row className="g-4">
-                      <Col md={3}>
-                          <h6 className="text-muted text-uppercase mb-2">Total Tasks Logged</h6>
-                          <h3 className="fw-bold text-primary">{staffLogSummary.totalTasks}</h3>
-                          <small className="text-muted">Tasks by all staff</small>
-                      </Col>
-                      <Col md={3}>
-                          <h6 className="text-muted text-uppercase mb-2">Tasks Completed</h6>
-                          <h3 className="fw-bold text-success">{staffLogSummary.completedTasks}</h3>
-                          <small className="text-muted">{staffLogSummary.completionRate.toFixed(1)}% Completion Rate</small>
-                      </Col>
-                      <Col md={3}>
-                          <h6 className="text-muted text-uppercase mb-2">Pending / In Progress</h6>
-                          <h3 className="fw-bold text-warning">{staffLogSummary.pendingTasks}</h3>
-                          <small className="text-muted">Requires follow-up</small>
-                      </Col>
-                      <Col md={3}>
-                          <h6 className="text-muted text-uppercase mb-2">Active Staff</h6>
-                          <h3 className="fw-bold text-info">{staffLogSummary.uniqueStaff}</h3>
-                          <small className="text-muted">Logged activity recently</small>
-                      </Col>
-                  </Row>
-              </Card.Body>
-          </Card>
+          <Row className="g-4 mb-5">
+              <Col md={3}>
+                  <StatCard
+                    title="Total Tasks"
+                    value={staffLogSummary.totalTasks}
+                    subtitle="Tasks by all staff"
+                    icon={FileText}
+                    color="primary"
+                  />
+              </Col>
+              <Col md={3}>
+                  <StatCard
+                    title="Tasks Completed"
+                    value={staffLogSummary.completedTasks}
+                    subtitle={`${staffLogSummary.completionRate.toFixed(1)}% Completion Rate`}
+                    icon={CheckCircle}
+                    color="success"
+                  />
+              </Col>
+              <Col md={3}>
+                  <StatCard
+                    title="Pending / In Progress"
+                    value={staffLogSummary.pendingTasks}
+                    subtitle="Requires follow-up"
+                    icon={Clock}
+                    color="warning"
+                  />
+              </Col>
+              <Col md={3}>
+                  <StatCard
+                    title="Active Staff"
+                    value={staffLogSummary.uniqueStaff}
+                    subtitle="Logged activity recently"
+                    icon={Users}
+                    color="info"
+                  />
+              </Col>
+          </Row>
           
           <h3 className="h5 mb-3 text-primary">Staff Log Details</h3>
           <StaffLogsTable />
