@@ -22,6 +22,16 @@ const History = () => {
   const [currencySymbol, setCurrencySymbol] = useState('₹'); 
   const [currencyCode, setCurrencyCode] = useState('INR'); 
 
+  // NEW STATE: Global Stats
+  const [invoiceStats, setInvoiceStats] = useState({
+      totalCount: 0,
+      totalRevenue: 0,
+      paidCount: 0,
+      pendingCount: 0,
+      overdueCount: 0,
+      draftCount: 0
+  }); 
+
   // --- Utility Functions ---
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
@@ -92,6 +102,16 @@ const History = () => {
     }
   }, []);
 
+  const fetchInvoiceStats = useCallback(async () => {
+    try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`${API_BASE_URL}/invoices/stats`, { headers: { Authorization: `Bearer ${token}` } });
+        setInvoiceStats(res.data);
+    } catch (err) {
+        console.error("Error fetching invoice stats in History:", err);
+    }
+  }, []);
+
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -136,8 +156,9 @@ const History = () => {
   const initialFetch = useCallback(async () => {
       setLoading(true);
       await Promise.all([
-          fetchSettings(), // Fetch settings first
-          fetchTransactions()
+          fetchSettings(), 
+          fetchTransactions(),
+          fetchInvoiceStats() // NEW
       ]);
       setLoading(false);
   }, [fetchSettings, fetchTransactions]);
@@ -145,7 +166,8 @@ const History = () => {
 
   useEffect(() => {
     initialFetch();
-  }, [initialFetch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFetch]); 
 
   // --- Sorting and Summaries ---
   
@@ -155,22 +177,9 @@ const History = () => {
   }, [transactions]);
   
   const transactionsList = sortedTransactions; 
+  
+  // 2. Client-side filtered revenue replaced by Global Stats
 
-  const paidTransactions = useMemo(() => 
-    transactionsList.filter(t => t.status === 'paid')
-  , [transactionsList]);
-
-  const totalRevenue = useMemo(() => 
-    paidTransactions.reduce((sum, t) => sum + (t.total || 0), 0)
-  , [paidTransactions]);
-
-  const pendingTransactionsCount = useMemo(() => 
-    transactionsList.filter(t => t.status === 'pending').length
-  , [transactionsList]);
-
-  const totalPendingAmount = useMemo(() => 
-    transactionsList.filter(t => t.status === 'pending').reduce((sum, t) => sum + (t.total || 0), 0)
-  , [transactionsList]);
   
   // --- Action Handlers ---
   
@@ -187,10 +196,8 @@ const History = () => {
             { status: newStatus },
             { headers: { Authorization: `Bearer ${token}` } }
         );
-        // Success - no further action needed as we updated optimistically
     } catch (err) {
         console.error("Failed to update status:", err);
-        // Revert on failure
         setTransactions(originalTransactions);
         alert("Failed to update status. Please try again.");
     }
@@ -227,10 +234,10 @@ const History = () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      alert('Transaction history exported successfully!');
+      // alert('Transaction history exported successfully!');
     } catch (err) {
       console.error('Export error:', err);
-      alert('Error exporting transactions.');
+      // alert('Error exporting transactions.');
     }
   };
 
@@ -255,7 +262,7 @@ const History = () => {
         <Col md={4}>
           <StatCard
             title="Total Revenue"
-            value={formatCurrency(totalRevenue)}
+            value={formatCurrency(invoiceStats.totalRevenue)}
             subtitle="All paid transactions"
             icon={DollarSign}
             color="success"
@@ -264,17 +271,17 @@ const History = () => {
         <Col md={4}>
           <StatCard
             title="Total Transactions"
-            value={transactionsList.length}
-            subtitle="Filtered transaction count"
+            value={invoiceStats.totalCount}
+            subtitle="All time (Global)"
             icon={FileText}
             color="primary"
           />
         </Col>
         <Col md={4}>
           <StatCard
-            title="Outstanding Amount"
-            value={formatCurrency(totalPendingAmount)}
-            subtitle={`${pendingTransactionsCount} invoices pending`}
+            title="Outstanding Count"
+            value={invoiceStats.pendingCount}
+            subtitle="Unpaid Invoices"
             icon={Clock}
             color="warning"
           />
@@ -290,14 +297,12 @@ const History = () => {
       {/* Filters */}
       <Card className="shadow-sm border-0 mb-4">
         <Card.Header className="bg-white py-3">
-          <Row className="align-items-center">
-            <Col md={4}>
-              <div className="d-flex align-items-center">
-                <Filter size={18} className="text-muted me-2" />
-                <Form.Select 
+          <Row className="gx-3 align-items-center">
+            <Col md={3} sm={6}>
+                 <Form.Select 
                   value={filterStatus} 
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="border-0 bg-light"
+                  className="bg-light"
                   aria-label="Filter by Status"
                 >
                   <option value="all">All Status</option>
@@ -306,45 +311,42 @@ const History = () => {
                   <option value="overdue">Overdue</option>
                   <option value="draft">Draft</option>
                 </Form.Select>
-              </div>
             </Col>
-            <Col md={8}>
-              <Row className="g-2">
-                <Col>
-                  <div className="position-relative">
-                    <Calendar size={16} className="position-absolute top-50 start-3 translate-middle-y text-muted" />
+
+            <Col md={3} sm={6}>
+                <div className="position-relative">
                     <Form.Control
                       type="date"
                       placeholder="Start Date"
                       value={dateRange.start}
                       onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
-                      className="ps-5"
+                      className="" 
                       aria-label="Start Date"
                     />
-                  </div>
-                </Col>
-                <Col>
-                  <div className="position-relative">
-                    <Calendar size={16} className="position-absolute top-50 start-3 translate-middle-y text-muted" />
+                </div>
+            </Col>
+            
+            <Col md={3} sm={6}>
+                <div className="position-relative">
                     <Form.Control
                       type="date"
                       placeholder="End Date"
                       value={dateRange.end}
                       onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
-                      className="ps-5"
+                      className=""
                       aria-label="End Date"
                     />
-                  </div>
-                </Col>
-                <Col xs="auto">
-                  <Button 
-                    variant="primary"
-                    onClick={handleApplyFilter} 
-                  >
-                    Apply
-                  </Button>
-                </Col>
-              </Row>
+                </div>
+            </Col>
+
+            <Col xs="auto">
+              <Button 
+                variant="primary"
+                onClick={handleApplyFilter}
+                className='px-4' 
+              >
+                Apply
+              </Button>
             </Col>
           </Row>
         </Card.Header>
@@ -359,34 +361,34 @@ const History = () => {
               No transactions found for the selected filters.
             </div>
           ) : (
-            <Table responsive hover className="mb-0">
+            <Table responsive hover className="mb-0 align-middle">
               <thead className="bg-light">
                 <tr>
-                  <th>Type</th>
-                  <th>Description</th>
-                  <th>Customer</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                  <th>Invoice #</th>
+                  <th className="ps-4 py-3">Type</th>
+                  <th className="py-3">Description</th>
+                  <th className="py-3">Customer</th>
+                  <th className="py-3">Amount</th>
+                  <th className="py-3">Status</th>
+                  <th className="py-3">Date</th>
+                  <th className="py-3">Invoice #</th>
                 </tr>
               </thead>
               <tbody>
                 {transactionsList.map((transaction, index) => (
                   <tr key={transaction._id}>
-                    <td>
+                    <td className="ps-4 py-3">
                       <div className="d-flex align-items-center">
                         <span className="me-2">{getTypeIcon('invoice')}</span>
                         <span className="text-capitalize">Invoice</span>
                       </div>
                     </td>
-                    <td>
+                    <td className="py-3">
                       <div>
                         <div className="fw-semibold">Invoice Payment</div>
                         <small className="text-muted">{transaction.items?.length || 0} items</small>
                       </div>
                     </td>
-                    <td>
+                    <td className="py-3">
                       <div className="d-flex align-items-center">
                         <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2" style={{ width: '32px', height: '32px' }}>
                           <span className="text-white fw-bold small">
@@ -396,10 +398,10 @@ const History = () => {
                         {transaction.customer?.name || 'N/A'}
                       </div>
                     </td>
-                    <td className={`fw-semibold text-${getStatusVariant(transaction.status)}`}>
+                    <td className={`fw-semibold py-3 text-${getStatusVariant(transaction.status)}`}>
                       {formatCurrency(transaction.total)}
                     </td>
-                    <td>
+                    <td className="py-3">
                       <Form.Select 
                         size="sm"
                         value={transaction.status}
@@ -413,12 +415,12 @@ const History = () => {
                          <option value="draft" className="text-secondary fw-bold">Draft</option>
                       </Form.Select>
                     </td>
-                    <td className="text-muted">
+                    <td className="text-muted py-3">
                       {new Date(transaction.createdAt).toLocaleDateString()}
                     </td>
-                    <td className="fw-semibold text-primary">
+                    <td className="fw-semibold text-primary py-3">
                       <div className='d-flex flex-column'>
-                        <span className='fw-bold'>#{getSequentialInvoiceNumber(index)}</span>
+                        <span className='fw-bold'>#{transaction.invoiceNumber}</span>
                       </div>
                     </td>
                   </tr>

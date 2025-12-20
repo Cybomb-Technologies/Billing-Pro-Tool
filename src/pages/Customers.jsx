@@ -441,21 +441,21 @@ const Customers = () => {
             </div>
           ) : (
             <div className="table-responsive flex-grow-1">
-              <Table hover className="mb-0">
-              <thead>
+              <Table hover className="mb-0 align-middle">
+              <thead className="bg-light">
                 <tr>
-                  <th>Contact Name</th>
-                  <th>Organization</th>
-                  <th>Phone / Email</th>
-                  <th>City</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th className="ps-4 py-3">Contact Name</th>
+                  <th className="py-3">Organization</th>
+                  <th className="py-3">Phone / Email</th>
+                  <th className="py-3">City</th>
+                  <th className="py-3">Status</th>
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredCustomers.map((customer) => (
                   <tr key={customer._id}>
-                    <td>
+                    <td className="ps-4 py-3">
                       <div className="fw-semibold">{customer.name}</div>
                       {customer.gstNumber && (
                         <small className="text-muted">
@@ -463,22 +463,22 @@ const Customers = () => {
                         </small>
                       )}
                     </td>
-                    <td>
+                    <td className="py-3">
                       <div className="fw-bold">
                         {customer.businessName || "Individual"}
                       </div>
                     </td>
-                    <td>
+                    <td className="py-3">
                       <div>{customer.phone}</div>
                       {customer.email && (
                         <small className="text-muted">{customer.email}</small>
                       )}
                     </td>
-                    <td>{customer.address?.city || "-"}</td>
-                    <td>
+                    <td className="py-3">{customer.address?.city || "-"}</td>
+                    <td className="py-3">
                       <Badge bg="success">Active</Badge>
                     </td>
-                    <td>
+                    <td className="py-3">
                       <Dropdown>
                         <Dropdown.Toggle variant="light" size="sm">
                           <MoreVertical size={16} />

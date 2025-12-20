@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Row, Col, Card, Button, Table, Badge, Spinner, Alert, ProgressBar } from 'react-bootstrap';
+import { Row, Col, Card, Button, Table, Badge, Spinner, Alert, ProgressBar, Form } from 'react-bootstrap';
 import { TrendingUp, Users, Package, FileText, Plus, LogOut, Truck, DollarSign, Clock, UsersRound, ArrowUpRight, Eye, ShoppingCart, Activity, Zap, AlertTriangle, Calendar, Download, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import StatCard from '../components/StatCard';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Line } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend } from 'chart.js';
+import { Bar, Pie } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Tooltip, Legend } from 'chart.js';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Tooltip, Legend);
 
 const SETTINGS_API_BASE_URL = `${API_BASE_URL}/settings`;
 
@@ -24,18 +24,32 @@ const Dashboard = () => {
     overdueCount: 0,
     pendingCount: 0,
     topSellingProducts: [],
-    monthlySales: {} 
+    monthlySales: {},
+    trends: { revenue: 0, invoices: 0, ar: 0, lowStock: 0 }, // NEW: Trends
+    totalUsers: 0,
+    lowStockProducts: [] // NEW: List from backend
   });
   const [invoices, setInvoices] = useState([]);
   const [topProductsData, setTopProductsData] = useState([]);
   const [recentCustomers, setRecentCustomers] = useState([]);
+  // const [staffLogs, setStaffLogs] = useState([]); // Removed
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   
-  // --- CURRENCY STATE ---
-  const [currencySymbol, setCurrencySymbol] = useState('₹'); 
-  const [currencyCode, setCurrencyCode] = useState('INR'); 
+  // --- Sales Pie Chart State ---
+  const [salesPeriod, setSalesPeriod] = useState('monthly');
+  const [salesDistribution, setSalesDistribution] = useState(null);
+  // -----------------------------
+  
+  // --- Sales Trend Bar Chart State ---
+  const [trendPeriod, setTrendPeriod] = useState('weekly');
+  const [trendData, setTrendData] = useState(null);
+  // -----------------------------------
+
+  // --- Currency State ---
+  const [currencyCode, setCurrencyCode] = useState('INR');
+  const [currencySymbol, setCurrencySymbol] = useState('₹');
   // ----------------------
 
   const { user, logout } = useAuth();
@@ -119,7 +133,7 @@ const Dashboard = () => {
       const [statsRes, invoicesRes, productsRes, customersRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/reports/dashboard-stats`, { headers: authHeaders }),
         axios.get(`${API_BASE_URL}/invoices?limit=5`, { headers: authHeaders }),
-        axios.get(`${API_BASE_URL}/products?limit=5`, { headers: authHeaders }),
+        axios.get(`${API_BASE_URL}/products?limit=20`, { headers: authHeaders }),
         axios.get(`${API_BASE_URL}/customers?limit=5`, { headers: authHeaders })
       ]);
 
@@ -127,6 +141,7 @@ const Dashboard = () => {
       const recentInvoices = invoicesRes.data.invoices || invoicesRes.data || [];
       const topProducts = productsRes.data.products || productsRes.data || [];
       const recentCustomers = customersRes.data.customers || customersRes.data || [];
+      // const recentLogs = Array.isArray(logsRes.data) ? logsRes.data.slice(0, 3) : []; // Removed logs
 
       // Set stats from backend aggregation
       setStats(statsRes.data);
@@ -134,6 +149,7 @@ const Dashboard = () => {
       setInvoices(recentInvoices);
       setTopProductsData(topProducts);
       setRecentCustomers(recentCustomers);
+      // setStaffLogs(recentLogs);
       
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -147,6 +163,52 @@ const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
+  // Fetch Sales Distribution when period changes
+  useEffect(() => {
+    const fetchSalesDistribution = async () => {
+        try {
+            const res = await axios.get(`${API_BASE_URL}/reports/payment-distribution?period=${salesPeriod}`, { headers: getAuthHeaders() });
+            setSalesDistribution(res.data);
+        } catch (error) {
+            console.error("Error fetching sales distribution:", error);
+        }
+    };
+    fetchSalesDistribution();
+  }, [salesPeriod]);
+
+  // Prepare Pie Chart Data
+  const pieChartData = useMemo(() => {
+    if (!salesDistribution) return null;
+    
+    // keys: cash, card, upi, bank_transfer, cheque
+    const labels = ['Cash', 'Card', 'UPI', 'Bank Transfer', 'Cheque'];
+    const dataValues = [
+        salesDistribution.cash || 0, 
+        salesDistribution.card || 0, 
+        salesDistribution.upi || 0, 
+        salesDistribution.bank_transfer || 0,
+        salesDistribution.cheque || 0
+    ];
+
+    return {
+        labels,
+        datasets: [
+            {
+                data: dataValues,
+                backgroundColor: [
+                    '#0d6efd', // Primary (Cash)
+                    '#198754', // Success (Card)
+                    '#ffc107', // Warning (UPI)
+                    '#6610f2', // Indigo (Bank)
+                    '#dc3545'  // Danger (Cheque)
+                ],
+                borderColor: '#ffffff',
+                borderWidth: 2,
+            },
+        ],
+    };
+  }, [salesDistribution]);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -154,48 +216,44 @@ const Dashboard = () => {
 
 
 
-  const { chartData, urgentActions } = useMemo(() => {
-    
-    // Revenue Trend Chart from Server Stats
-    const monthlySales = stats.monthlySales || {};
-    const sortedMonthKeys = Object.keys(monthlySales).sort().slice(-6);
 
-    const chart = {
-      labels: sortedMonthKeys.map(key => new Date(key).toLocaleString('en-US', { month: 'short', year: 'numeric' })),
-      datasets: [
-        {
-          label: 'Revenue',
-          data: sortedMonthKeys.map(key => monthlySales[key] || 0),
-          borderColor: '#0d6efd',
-          backgroundColor: 'rgba(13, 110, 253, 0.1)',
-          fill: true,
-          tension: 0.4,
-          borderWidth: 3,
-          pointBackgroundColor: '#0d6efd',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          pointRadius: 6,
-          pointHoverRadius: 8,
-        },
-      ],
+
+  // Fetch Sales Trend
+  useEffect(() => {
+    const fetchTrend = async () => {
+        try {
+            const res = await axios.get(`${API_BASE_URL}/reports/sales-trend?period=${trendPeriod}`, { headers: getAuthHeaders() });
+            setTrendData(res.data);
+        } catch (error) {
+            console.error("Error fetching sales trend:", error);
+        }
     };
+    fetchTrend();
+  }, [trendPeriod]);
+
+  const barChartData = useMemo(() => {
+      if (!trendData) return null;
+      return {
+          labels: trendData.labels,
+          datasets: [{
+              label: 'Sales Revenue',
+              data: trendData.data,
+              backgroundColor: '#0d6efd',
+              borderRadius: 4,
+          }]
+      };
+  }, [trendData]);
+
+  const { urgentActions: urgentActionsData } = useMemo(() => {
     
     // Urgent Actions Data from Server Stats
     const urgentActions = {
       overdueInvoices: stats.overdueCount || 0,
-      lowStockProducts: topProductsData.filter(p => (p.stock || 0) < 5 && (p.stock || 0) >= 0).slice(0, 3) || [], // Keep this client side for now as we have the recent list? No, topProductsData is now only 5 items. 
-      // Actually, for "Low Stock Alerts" list, we need the NAMES of low stock items.
-      // 'dashboard-stats' returns 'lowStockCount' but not the items list.
-      // We are fetching 'products?limit=5' into topProductsData. That's NOT "All Low Stock Products".
-      // This is a GAP. 
-      // Quick fix: The "Manage Low Stock Items" button takes user to products page.
-      // For the LIST in Quick Actions, we can just show empty or "Check Inventory".
-      // OR better, we can filter the 'topSellingProducts' (which we have full details for) for low stock? No suitable.
-      // Let's rely on 'topProductsData' (recent) for now, or just hide the list if empty.
+      lowStockProducts: stats.lowStockProducts || [], // Use backend list
       pendingPayments: stats.pendingCount || 0
     };
 
-    return { chartData: chart, urgentActions };
+    return { urgentActions };
   }, [stats, topProductsData]);
 
   const getStatusVariant = (status) => {
@@ -270,6 +328,7 @@ const Dashboard = () => {
         </div>
 
         {/* Enhanced Stats Cards */}
+        {/* Enhanced Stats Cards */}
         <Row className="g-4 mb-4">
           <Col lg={3} md={6}>
             <StatCard 
@@ -278,7 +337,7 @@ const Dashboard = () => {
               subtitle="All time paid invoices"
               icon={TrendingUp} 
               color="success"
-              trend={12.5}
+              trend={stats.trends?.revenue || 0}
             />
           </Col>
           <Col lg={3} md={6}>
@@ -288,7 +347,7 @@ const Dashboard = () => {
               subtitle="Pending payments"
               icon={Clock} 
               color="warning"
-              trend={-3.2}
+              trend={stats.trends?.ar || 0}
             />
           </Col>
           <Col lg={3} md={6}>
@@ -298,7 +357,7 @@ const Dashboard = () => {
               subtitle="All invoices created"
               icon={FileText} 
               color="primary"
-              trend={8.7}
+              trend={stats.trends?.invoices || 0}
             />
           </Col>
           <Col lg={3} md={6}>
@@ -308,31 +367,39 @@ const Dashboard = () => {
               subtitle="Need restocking"
               icon={Truck} 
               color={stats.lowStockCount > 0 ? 'danger' : 'secondary'}
-              trend={stats.lowStockCount > 0 ? 15.3 : 0}
+              trend={0} // Stock trend usually not relevant or hard to track without history
             />
           </Col>
         </Row>
 
-        {/* Enhanced Content Row */}
-        <Row className="g-4">
-          {/* Left Column */}
+        {/* Quick Actions Row */}
+
+
+        {/* Enhanced Content Grid (2x2) */}
+        <Row className="g-4 mb-4">
+          
+          {/* 1. Sales Revenue */}
           <Col lg={6} md={12}>
-            {/* Enhanced Sales Chart */}
-            <Card className="shadow-sm border-0 mb-4 chart-card">
+            <Card className="shadow-sm border-0 h-100 chart-card">
               <Card.Header className="bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                <h5 className="mb-0 fw-bold">Revenue Trend</h5>
-                <div className="d-flex gap-2">
-                  <Button variant="outline-primary" size="sm" className="d-flex align-items-center" onClick={() => navigate('/history')}>
-                    <Eye size={14} className="me-1" />
-                    Details
-                  </Button>
-                </div>
+                <h5 className="mb-0 fw-bold">Sales Revenue</h5>
+                <Form.Select 
+                    size="sm" 
+                    style={{ width: 'auto', cursor: 'pointer' }}
+                    value={trendPeriod}
+                    onChange={(e) => setTrendPeriod(e.target.value)}
+                >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                </Form.Select>
               </Card.Header>
               <Card.Body className="p-4">
-                {chartData.datasets[0].data.length > 0 ? (
+                {barChartData ? (
                   <div className="chart-container" style={{ height: '300px' }}>
-                    <Line 
-                      data={chartData} 
+                    <Bar 
+                      data={barChartData} 
                       options={{
                         maintainAspectRatio: false,
                         plugins: {
@@ -340,13 +407,6 @@ const Dashboard = () => {
                             display: false
                           },
                           tooltip: {
-                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                            titleColor: '#333',
-                            bodyColor: '#666',
-                            borderColor: '#e9ecef',
-                            borderWidth: 1,
-                            cornerRadius: 8,
-                            displayColors: false,
                             callbacks: {
                               label: function(context) {
                                 return `Revenue: ${formatCurrency(context.parsed.y)}`;
@@ -379,165 +439,110 @@ const Dashboard = () => {
                     <div className="bg-light rounded-circle p-4 d-inline-block mb-3">
                       <TrendingUp size={32} className="text-muted" />
                     </div>
-                    <h6 className="text-muted">Not enough sales data</h6>
-                    <p className="text-muted small mb-0">Start creating paid invoices to see revenue trends</p>
+                    <h6 className="text-muted">Loading chart...</h6>
                   </div>
                 )}
-              </Card.Body>
-            </Card>
-
-            {/* Enhanced Customer & Product Summary */}
-            <Card className="shadow-sm border-0 h-auto py-4">
-              <Card.Header className="bg-white border-0 py-3">
-                <h5 className="mb-0 fw-bold">Business Overview</h5>
-              </Card.Header>
-              <Card.Body className="p-4">
-                <Row className="g-4 mb-4">
-                  <Col md={6}>
-                    <div className="p-3 border rounded h-100 bg-light">
-                      <div className="d-flex align-items-center mb-2">
-                        <UsersRound size={20} className="text-info me-2" />
-                        <h6 className="mb-0 fw-bold">Total Customers</h6>
-                      </div>
-                      <h3 className="fw-bold text-info mb-1">{stats.totalCustomers.toLocaleString()}</h3>
-                      <small className="text-muted">Registered customers</small>
-                    </div>
-                  </Col>
-                  <Col md={6}>
-                    <div className="p-3 border rounded h-100 bg-light">
-                      <div className="d-flex align-items-center mb-2">
-                        <Package size={20} className="text-primary me-2" />
-                        <h6 className="mb-0 fw-bold">Total Products</h6>
-                      </div>
-                      <h3 className="fw-bold text-primary mb-1">{stats.totalProducts.toLocaleString()}</h3>
-                      <small className="text-muted">Available products</small>
-                    </div>
-                  </Col>
-                </Row>
-
-                <h6 className="fw-bold mb-3">Recent Customers</h6>
-                {recentCustomers.length > 0 ? (
-                  <div className="recent-customers">
-                    {recentCustomers.map((cust) => (
-                      <div key={cust._id} className="d-flex justify-content-between align-items-center py-3 border-bottom customer-item">
-                        <div className="d-flex align-items-center">
-                          <div className="bg-primary bg-opacity-10 rounded-circle p-2 me-3">
-                            <Users size={16} className="text-primary" />
-                          </div>
-                          <div>
-                            <span className="fw-semibold d-block">{cust.name}</span>
-                            <small className="text-muted">{cust.phone || cust.email}</small>
-                          </div>
-                        </div>
-                        <ArrowUpRight size={16} className="text-muted" />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <Users size={32} className="text-muted mb-2" />
-                    <p className="text-muted small mb-0">No customers added yet</p>
-                  </div>
-                )}
-
-                <div className="d-grid gap-2  mt-5">
-                  <Link to="/customers" className="text-decoration-none">
-                    <Button variant="primary" className="mx-auto mb-2 d-flex align-items-center justify-content-center">
-                      <UsersRound size={16} className="me-2" />
-                      Manage Customers
-                    </Button>
-                  </Link>
-                  {user?.role === "admin" && (
-                    <Link to="/reports" className="text-decoration-none">
-                      <Button variant="warning" className="mx-auto d-flex align-items-center justify-content-center">
-                        <FileText size={16} className="me-2" />
-                        View Detailed Reports
-                      </Button>
-                    </Link>
-                  )}
-                </div>
               </Card.Body>
             </Card>
           </Col>
 
-          {/* Right Column */}
+          {/* 2. Low Stock Alerts */}
           <Col lg={6} md={12}>
-            {/* Enhanced Recent Invoices */}
-            <Card className="shadow-sm border-0 mb-4">
+            <Card className="shadow-sm border-0 h-100">
               <Card.Header className="bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                <h5 className="mb-0 fw-bold">Recent Invoices</h5>
-                <Badge bg="light" text="dark" className="fw-semibold">
-                  {invoices.length} items
-                </Badge>
+                <h5 className="mb-0 fw-bold">Low Stock Alerts</h5>
+                <AlertTriangle size={20} className="text-warning" />
               </Card.Header>
-              <Card.Body className="p-0">
-                <div className="table-responsive">
-                  <Table hover className="mb-0 table-sm">
-                    <thead className="bg-light">
-                      <tr>
-                        <th className="ps-4">Invoice #</th>
-                        <th>Customer</th>
-                        <th>Amount ({currencySymbol})</th>
-                        <th>Status</th>
-                        <th className="pe-4">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      { invoices.length > 0 ? (
-                        invoices.map(invoice => (
-                          <tr key={invoice._id} className="invoice-row">
-                            <td className="ps-4">
-                              <span className="fw-bold text-primary d-flex align-items-center">
-                                #{formatOfficialInvoiceNumber(invoice)}
-                                <ArrowUpRight size={14} className="ms-1" />
-                              </span>
-                            </td>
-                            <td>
-                              <div className="d-flex align-items-center">
-                                <div className="bg-success bg-opacity-10 rounded-circle p-1 me-2">
-                                  <Users size={12} className="text-success" />
-                                </div>
-                                {invoice.customer?.name || 'N/A'}
-                              </div>
-                            </td>
-                            <td className="fw-bold">{formatCurrency(invoice.total)}</td>
-                            <td>
-                              <Badge 
-                                bg={getStatusVariant(invoice.status)} 
-                                className="text-uppercase fw-semibold px-2 py-1"
-                              >
-                                {invoice.status}
-                              </Badge>
-                            </td>
-                            <td className="pe-4">
-                              <small className="text-muted">
-                                {new Date(invoice.createdAt).toLocaleDateString()}
-                              </small>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="5" className="text-center py-5">
-                            <FileText size={32} className="text-muted mb-2" />
-                            <p className="text-muted mb-0">No invoices created yet</p>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </Table>
-                </div>
+              <Card.Body className="p-4">
+                {urgentActionsData.lowStockProducts.length > 0 ? (
+                  <div className="low-stock-alerts">
+                    {urgentActionsData.lowStockProducts.map((product, index) => (
+                      <div key={index} className="d-flex justify-content-between align-items-center py-2 border-bottom">
+                        <div className="d-flex align-items-center">
+                          <div className="bg-danger bg-opacity-10 rounded-circle p-1 me-2">
+                            <Package size={14} className="text-danger" />
+                          </div>
+                          <span className="fw-semibold">{product.name}</span>
+                        </div>
+                        <Badge bg="danger" className="fw-semibold">
+                          {product.stock} left
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-3">
+                    <Package size={24} className="text-success mb-2" />
+                    <p className="text-muted small mb-0">All products are well stocked</p>
+                  </div>
+                )}
               </Card.Body>
-              <Card.Footer className="bg-white border-0 py-3">
-                <Link to="/invoices" className="text-primary text-decoration-none fw-semibold d-flex align-items-center justify-content-center">
-                  View All Invoices
-                  <ArrowUpRight size={16} className="ms-1" />
-                </Link>
-              </Card.Footer>
             </Card>
+          </Col>
 
-            {/* Enhanced Top Products */}
-            <Card className="shadow-sm border-0 mb-4">
+          {/* 3. Sales Distribution */}
+          <Col lg={6} md={12}>
+            <Card className="shadow-sm border-0 h-100">
+              <Card.Header className="bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                <h5 className="mb-0 fw-bold">Sales Distribution</h5>
+                <Form.Select 
+                    size="sm" 
+                    style={{ width: 'auto', cursor: 'pointer' }}
+                    value={salesPeriod}
+                    onChange={(e) => setSalesPeriod(e.target.value)}
+                >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                </Form.Select>
+              </Card.Header>
+              <Card.Body className="p-4 d-flex align-items-center justify-content-center">
+                 {pieChartData && pieChartData.datasets[0].data.some(v => v > 0) ? (
+                    <div style={{ height: '300px', width: '100%', maxWidth: '400px' }}>
+                        <Pie 
+                            data={pieChartData} 
+                            options={{
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: {
+                                        position: 'bottom',
+                                        labels: {
+                                            usePointStyle: true,
+                                            boxWidth: 8,
+                                            padding: 20
+                                        }
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                const value = context.parsed;
+                                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
+                                                return ` ${context.label}: ${formatCurrency(value)} (${percentage})`;
+                                            }
+                                        }
+                                    }
+                                }
+                            }} 
+                        />
+                    </div>
+                 ) : (
+                    <div className="text-center py-5">
+                         <div className="bg-light rounded-circle p-4 d-inline-block mb-3">
+                            <DollarSign size={32} className="text-muted" />
+                         </div>
+                         <h6 className="text-muted">No sales data for this period</h6>
+                         <p className="text-muted small">Try selecting a different time range.</p>
+                    </div>
+                 )}
+              </Card.Body>
+            </Card>
+          </Col>
+
+          {/* 4. Top Selling Products */}
+          <Col lg={6} md={12}>
+            <Card className="shadow-sm border-0 h-100">
               <Card.Header className="bg-white border-0 py-3 d-flex justify-content-between align-items-center">
                 <h5 className="mb-0 fw-bold">Top Selling Products</h5>
                 <ShoppingCart size={20} className="text-success" />
@@ -580,46 +585,102 @@ const Dashboard = () => {
                 )}
               </Card.Body>
             </Card>
-
-            {/* Quick Actions & Alerts Section */}
-            <Card className="shadow-sm border-0">
-              <Card.Header className="bg-white border-0 py-2 d-flex justify-content-between align-items-center">
-                <h5 className="mb-0 fw-bold">Quick Alerts</h5>
-                <AlertTriangle size={20} className="text-warning" />
-              </Card.Header>
-              <Card.Body className="p-4">
-               
-
-                <h6 className="fw-bold mb-3">Low Stock Alerts</h6>
-                {urgentActions.lowStockProducts.length > 0 ? (
-                  <div className="low-stock-alerts">
-                    {urgentActions.lowStockProducts.map((product, index) => (
-                      <div key={index} className="d-flex justify-content-between align-items-center py-2 border-bottom">
-                        <div className="d-flex align-items-center">
-                          <div className="bg-danger bg-opacity-10 rounded-circle p-1 me-2">
-                            <Package size={14} className="text-danger" />
-                          </div>
-                          <span className="fw-semibold">{product.name}</span>
-                        </div>
-                        <Badge bg="danger" className="fw-semibold">
-                          {product.stock} left
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-3">
-                    <Package size={24} className="text-success mb-2" />
-                    <p className="text-muted small mb-0">All products are well stocked</p>
-                  </div>
-                )}
-
-                
-              </Card.Body>
-            </Card>
           </Col>
         </Row>
       </div>
+
+      {/* FULL WIDTH BUSINESS OVERVIEW SECTION - ADMIN ONLY */}
+      {user?.role === 'admin' && (
+      <div className="p-4 pt-0">
+        <Card className="shadow-sm border-0 mb-4">
+            <Card.Header className="bg-white border-0 py-3">
+                <h5 className="mb-0 fw-bold">Business Overview</h5>
+            </Card.Header>
+            <Card.Body className="p-4">
+                {/* 4 Stats Cards Row */}
+                <Row className="g-4 mb-5">
+                    <Col lg={3} md={6}>
+                        <div className="p-4 border rounded bg-light text-center h-100">
+                             <div className="d-flex justify-content-center mb-3">
+                                <div className="bg-info bg-opacity-10 p-3 rounded-circle">
+                                     <Users size={28} className="text-info" />
+                                </div>
+                             </div>
+                             <h2 className="fw-bold mb-1">{stats.totalUsers.toLocaleString()}</h2>
+                             <span className="text-muted fw-semibold">Total Users</span>
+                             <div className="small text-muted mt-2">Admin & Staff</div>
+                        </div>
+                    </Col>
+                     <Col lg={3} md={6}>
+                        <div className="p-4 border rounded bg-light text-center h-100">
+                             <div className="d-flex justify-content-center mb-3">
+                                <div className="bg-primary bg-opacity-10 p-3 rounded-circle">
+                                     <Package size={28} className="text-primary" />
+                                </div>
+                             </div>
+                             <h2 className="fw-bold mb-1">{stats.totalProducts.toLocaleString()}</h2>
+                             <span className="text-muted fw-semibold">Total Products</span>
+                             <div className="small text-muted mt-2">In Inventory</div>
+                        </div>
+                    </Col>
+                     <Col lg={3} md={6}>
+                        <div className="p-4 border rounded bg-light text-center h-100">
+                             <div className="d-flex justify-content-center mb-3">
+                                <div className="bg-success bg-opacity-10 p-3 rounded-circle">
+                                     <FileText size={28} className="text-success" />
+                                </div>
+                             </div>
+                             <h2 className="fw-bold mb-1">{stats.totalInvoices.toLocaleString()}</h2>
+                             <span className="text-muted fw-semibold">Total Transactions</span>
+                             <div className="small text-muted mt-2">Invoices Generated</div>
+                        </div>
+                    </Col>
+                     <Col lg={3} md={6}>
+                        <div className="p-4 border rounded bg-light text-center h-100">
+                             <div className="d-flex justify-content-center mb-3">
+                                <div className="bg-warning bg-opacity-10 p-3 rounded-circle">
+                                     <UsersRound size={28} className="text-warning" />
+                                </div>
+                             </div>
+                             <h2 className="fw-bold mb-1">{stats.totalCustomers.toLocaleString()}</h2>
+                             <span className="text-muted fw-semibold">Total Customers</span>
+                             <div className="small text-muted mt-2">Active Clients</div>
+                        </div>
+                    </Col>
+                </Row>
+
+                {/* Quick Action Buttons */}
+                <div>
+                     <h6 className="fw-bold mb-3 text-secondary text-uppercase small ls-1">Quick Actions</h6>
+                     <div className="d-flex gap-3 flex-wrap">
+                        <Link to="/invoices" className="flex-grow-1">
+                             <Button variant="outline-primary" size="lg" className="w-100 py-3 fw-semibold shadow-sm d-flex align-items-center justify-content-center">
+                                 <Plus size={20} className="me-2" /> New Invoice
+                             </Button>
+                        </Link>
+                        <Link to="/customers" className="flex-grow-1">
+                             <Button variant="outline-info" size="lg" className="w-100 py-3 fw-semibold shadow-sm d-flex align-items-center justify-content-center">
+                                 <UsersRound size={20} className="me-2" /> Add Customer
+                             </Button>
+                        </Link>
+                        <Link to="/products" className="flex-grow-1">
+                             <Button variant="outline-success" size="lg" className="w-100 py-3 fw-semibold shadow-sm d-flex align-items-center justify-content-center">
+                                <Package size={20} className="me-2" /> Add Product
+                             </Button>
+                        </Link>
+                         {user?.role === "admin" && (
+                             <Link to="/reports" className="flex-grow-1">
+                                 <Button variant="outline-dark" size="lg" className="w-100 py-3 fw-semibold shadow-sm d-flex align-items-center justify-content-center">
+                                     <FileText size={20} className="me-2" /> View Reports
+                                 </Button>
+                             </Link>
+                         )}
+                     </div>
+                </div>
+            </Card.Body>
+        </Card>
+      </div>
+      )}
 
       {/* FOOTER BRANDING ADDED HERE */}
       <div className="mt-2 mb-4  pt-3 border-top text-center text-muted small">

@@ -27,6 +27,16 @@ export default function useInvoiceBackend() {
     cgst: 9, sgst: 9, igst: 0, gstType: 'cgst_sgst' 
   }); 
 
+  // NEW STATE: Invoice Stats
+  const [invoiceStats, setInvoiceStats] = useState({
+      totalCount: 0,
+      totalRevenue: 0,
+      paidCount: 0,
+      pendingCount: 0,
+      overdueCount: 0,
+      draftCount: 0
+  }); 
+
   const [notes, setNotes] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [paymentType, setPaymentType] = useState('cash');
@@ -54,15 +64,28 @@ export default function useInvoiceBackend() {
   
   // --- Core API Handlers (Stock Check integrated) ---
 
-  const fetchInvoices = useCallback(async () => {
+  const fetchInvoices = useCallback(async (queryParams = {}) => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/invoices`, { headers: getAuthHeaders() });
+      const res = await axios.get(`${API_BASE_URL}/invoices`, { 
+          headers: getAuthHeaders(),
+          params: queryParams 
+      });
       const invoicesData = res.data.invoices || res.data;
       setInvoices(Array.isArray(invoicesData) ? invoicesData : []);
     } catch (err) {
       showAlert('Error fetching invoices', 'danger');
     }
   }, [showAlert]);
+
+  // NEW: Fetch Invoice Stats
+  const fetchInvoiceStats = useCallback(async () => {
+      try {
+          const res = await axios.get(`${API_BASE_URL}/invoices/stats`, { headers: getAuthHeaders() });
+          setInvoiceStats(res.data);
+      } catch (err) {
+          console.error("Error fetching invoice stats:", err);
+      }
+  }, []);
 
   const fetchCustomers = useCallback(async () => {
     try {
@@ -117,7 +140,7 @@ export default function useInvoiceBackend() {
     try {
       // Backend will save the sequential invoiceNumber provided in payload
       const res = await axios.post(`${API_BASE_URL}/invoices`, invoicePayload, { headers: getAuthHeaders() });
-      await Promise.all([fetchInvoices(), fetchProducts()]); // Refetch products for immediate stock update
+      await Promise.all([fetchInvoices(), fetchProducts(), fetchInvoiceStats()]); // Refetch stats too
       showAlert('Invoice created successfully!', 'success');
       return res.data;
     } catch (err) {
@@ -131,7 +154,7 @@ export default function useInvoiceBackend() {
     try {
       // Backend will use the existing sequential invoiceNumber in payload
       await axios.put(`${API_BASE_URL}/invoices/${invoiceId}`, invoicePayload, { headers: getAuthHeaders() });
-      await Promise.all([fetchInvoices(), fetchProducts()]);
+      await Promise.all([fetchInvoices(), fetchProducts(), fetchInvoiceStats()]);
       showAlert('Invoice updated successfully!', 'success');
     } catch (err) {
       const message = err.response?.data?.message || 'Error updating invoice';
@@ -140,13 +163,25 @@ export default function useInvoiceBackend() {
     }
   };
 
-  const deleteInvoice = async (invoiceId) => {
+  const deleteInvoice = async (invoiceId, refetchParams = {}) => {
     try {
       await axios.delete(`${API_BASE_URL}/invoices/${invoiceId}`, { headers: getAuthHeaders() });
-      await Promise.all([fetchInvoices(), fetchProducts()]);
-      showAlert('Invoice deleted successfully!', 'success');
+      await Promise.all([fetchInvoices(refetchParams), fetchProducts(), fetchInvoiceStats()]);
+      showAlert('Invoice moved to trash!', 'success');
     } catch (err) {
       showAlert('Error deleting invoice', 'danger');
+      throw err;
+    }
+  };
+
+  const restoreInvoice = async (invoiceId, refetchParams = {}) => {
+    try {
+      await axios.patch(`${API_BASE_URL}/invoices/${invoiceId}/restore`, {}, { headers: getAuthHeaders() });
+      await Promise.all([fetchInvoices(refetchParams), fetchInvoiceStats()]);
+      showAlert('Invoice restored successfully!', 'success');
+    } catch (err) {
+      const message = err.response?.data?.message || 'Error restoring invoice';
+      showAlert(message, 'danger');
       throw err;
     }
   };
@@ -323,11 +358,12 @@ export default function useInvoiceBackend() {
     fetchInvoices();
     fetchCustomers();
     fetchProducts(); 
-  }, [fetchSettings, fetchInvoices, fetchCustomers, fetchProducts]);
+    fetchInvoiceStats(); // NEW: Initial fetch
+  }, [fetchSettings, fetchInvoices, fetchCustomers, fetchProducts, fetchInvoiceStats]);
 
   return {
     // Data
-    invoices, customers, products, settings, 
+    invoices, customers, products, settings, invoiceStats, // Export stats 
     
     // Form State
     selectedCustomer, setSelectedCustomer,
@@ -338,7 +374,7 @@ export default function useInvoiceBackend() {
     paymentType, setPaymentType,
 
     // Actions
-    fetchInvoices, createInvoice, updateInvoice, deleteInvoice, exportInvoices,
+    fetchInvoices, fetchInvoiceStats, createInvoice, updateInvoice, deleteInvoice, restoreInvoice, exportInvoices,
     createCustomer, searchCustomerByPhone, addItem, removeItem, updateItem,
 
     // Totals & Helpers

@@ -5,7 +5,7 @@ import {
   Table, Button, Card, Row, Col, Modal, Form, Badge, Dropdown, Alert, InputGroup, Spinner, ListGroup
 } from 'react-bootstrap';
 import {
-  Plus, Download, MoreVertical, Eye, Printer, Edit, FileText, Search, X, Trash2, Box, Building, User as UserIcon, TrendingUp, Clock, AlertTriangle // Renamed User icon for clarity
+  Plus, Download, MoreVertical, Eye, Printer, Edit, FileText, Search, X, Trash2, Box, Building, User as UserIcon, TrendingUp, Clock, AlertTriangle, ChevronDown // Renamed User icon for clarity
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext'; // FIX: Adjusted import path
@@ -14,7 +14,23 @@ import { API_BASE_URL, SERVER_URL } from '../../config';
 import html2pdf from 'html2pdf.js';
 
 // Base URL for settings API call
+// Base URL for settings API call
 const SETTINGS_API_BASE_URL = `${API_BASE_URL}/settings`;
+
+// Custom Toggle for Dropdown (removes default caret)
+const CustomToggle = React.forwardRef(({ children, onClick }, ref) => (
+  <button
+    ref={ref}
+    onClick={(e) => {
+      e.preventDefault();
+      onClick(e);
+    }}
+    className="btn btn-sm btn-white border-0 p-1 text-dark d-flex align-items-center"
+    style={{ boxShadow: 'none' }}
+  >
+    {children}
+  </button>
+));
 
 // =========================================================================
 // 1. EXTRACTED & MEMOIZED INVOICE FORM COMPONENT
@@ -32,7 +48,8 @@ const InvoiceForm = React.memo(function InvoiceForm({
     handleProductSelect, handleItemFieldChange, products, getProductStock,
     notes, setNotes, totals, formatCurrency, currencySymbol,
     selectedCustomer, setSelectedCustomer, customers, handleDeselectCustomer, // Added setSelectedCustomer
-    showAlert // Added showAlert
+    showAlert, // Added showAlert
+    originalItems = [] // NEW PROP: Original items for edit stock calculation
 }) {
 
   // Auto-complete logic
@@ -80,6 +97,25 @@ const InvoiceForm = React.memo(function InvoiceForm({
   // Show if a search was performed (customerSearch has value) AND 
   // no customer was found (searchedCustomer is null/falsey).
   const shouldShowCustomerCard = customerSearch && (searchedCustomer === null || (searchedCustomer && !selectedCustomer));
+
+  // HELPER: Calculate effective stock (Current Stock + Original Quantity in this invoice)
+  const getEffectiveStock = (productId) => {
+      let currentStock = getProductStock(productId);
+      
+      if (isEdit && originalItems && originalItems.length > 0) {
+          // Find if this product was in the original invoice
+          // Note: originalItems product field might be populated object or ID string
+          const originalItem = originalItems.find(oi => {
+              const oiId = (typeof oi.product === 'object' && oi.product !== null) ? oi.product._id : oi.product;
+              return oiId === productId;
+          });
+          
+          if (originalItem) {
+              currentStock += (Number(originalItem.quantity) || 0);
+          }
+      }
+      return currentStock;
+  };
 
 
   return (
@@ -278,11 +314,11 @@ const InvoiceForm = React.memo(function InvoiceForm({
                 </thead>
                 <tbody>
                   {invoiceItems.map((item, idx) => {
-                    const stockAvailable = getProductStock(item.product);
+                    const effectiveStock = getEffectiveStock(item.product);
                     const requestedQuantity = Number(item.quantity);
-                    const stockIsLow = stockAvailable > 0 && stockAvailable < 5;
-                    const stockIsZero = stockAvailable === 0;
-                    const quantityExceedsStock = requestedQuantity > stockAvailable;
+                    const stockIsLow = effectiveStock > 0 && effectiveStock < 5;
+                    const stockIsZero = effectiveStock === 0;
+                    const quantityExceedsStock = requestedQuantity > effectiveStock;
                       
                     return (
                     <tr key={`item-${idx}`}>
@@ -293,17 +329,29 @@ const InvoiceForm = React.memo(function InvoiceForm({
                           required
                         >
                           <option value="">Select Product</option>
-                          {products.map(p => (
-                            <option 
-                              key={p._id} 
-                              value={p._id}
-                              disabled={Number(p.stock) === 0} 
-                            >
-                              {p.name} - {formatCurrency(p.price)}
-                              {Number(p.stock) === 0 && ' (Out of Stock)'}
-                              {Number(p.stock) > 0 && Number(p.stock) < 5 && ` (Low: ${p.stock})`}
-                            </option>
-                          ))}
+                          {products.map(p => {
+                            // Calculate effective stock for this product in the dropdown too
+                            let pStock = Number(p.stock) || 0;
+                            if (isEdit && originalItems.length > 0) {
+                                const foundOriginal = originalItems.find(oi => {
+                                   const oiId = (typeof oi.product === 'object' && oi.product !== null) ? oi.product._id : oi.product;
+                                   return oiId === p._id;
+                                });
+                                if (foundOriginal) pStock += (Number(foundOriginal.quantity) || 0);
+                            }
+                            
+                            return (
+                                <option 
+                                  key={p._id} 
+                                  value={p._id}
+                                  disabled={pStock === 0} 
+                                >
+                                  {p.name} - {formatCurrency(p.price)}
+                                  {pStock === 0 && ' (Out of Stock)'}
+                                  {pStock > 0 && pStock < 5 && ` (Low: ${pStock})`}
+                                </option>
+                            );
+                          })}
                         </Form.Select>
                       </td>
                       <td>
@@ -342,8 +390,8 @@ const InvoiceForm = React.memo(function InvoiceForm({
                                 {stockIsZero 
                                     ? 'Out of Stock' 
                                     : quantityExceedsStock
-                                    ? `Only ${stockAvailable} in stock!`
-                                    : `In Stock: ${stockAvailable}`
+                                    ? `Only ${effectiveStock} in stock!`
+                                    : `In Stock: ${effectiveStock}`
                                 }
                             </small>
                          )}
@@ -452,7 +500,10 @@ const InvoiceForm = React.memo(function InvoiceForm({
             !selectedCustomer || 
             invoiceItems.length === 0 || 
             // !dueDate ||
-            invoiceItems.some(item => Number(item.quantity) > getProductStock(item.product))
+            invoiceItems.some(item => {
+                 const effStock = getEffectiveStock(item.product);
+                 return Number(item.quantity) > effStock;
+            })
           }
         >
           {submitButtonText}
@@ -472,7 +523,7 @@ const InvoiceForm = React.memo(function InvoiceForm({
  */
 export default function InvoiceFrontend(props) {
   const {
-    invoices, customers, products, settings, 
+    invoices, customers, products, settings, invoiceStats, // New prop
     // form state
     selectedCustomer, setSelectedCustomer,
     invoiceItems, setInvoiceItems,
@@ -486,6 +537,7 @@ export default function InvoiceFrontend(props) {
     createInvoice,
     updateInvoice,
     deleteInvoice,
+    restoreInvoice, // NEW: Restore action
     exportInvoices,
     createCustomer,
     searchCustomerByPhone,
@@ -535,6 +587,7 @@ export default function InvoiceFrontend(props) {
 
   // UI-only local state
   const [filter, setFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all'); // New Date Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [searchedCustomer, setSearchedCustomer] = useState(null);
@@ -560,15 +613,7 @@ export default function InvoiceFrontend(props) {
 
   const totals = useMemo(() => calculateTotalsForItems(invoiceItems), [invoiceItems, calculateTotalsForItems]);
 
-  const invoiceSummary = useMemo(() => {
-    const totalCount = invoices.length;
-    const paidCount = invoices.filter(inv => inv.status === 'paid').length;
-    const pendingCount = invoices.filter(inv => inv.status === 'pending' || inv.status === 'draft').length;
-    const overdueCount = invoices.filter(inv => inv.status === 'overdue').length;
-    const totalRevenue = invoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
-
-    return { totalCount, paidCount, pendingCount, overdueCount, totalRevenue };
-  }, [invoices]);
+  // REMOVED: Client-side invoiceSummary calculation. Now using invoiceStats from backend.
   
   const sequentiallyOrderedInvoices = useMemo(() => {
       return [...invoices].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -578,7 +623,28 @@ export default function InvoiceFrontend(props) {
   const sortedAndFilteredInvoices = useMemo(() => {
     return invoices
       .filter(inv => {
-        if (filter !== 'all' && inv.status !== filter) return false;
+        // Status Filter - REMOVED client-side check as it's now handled by server
+        // if (filter !== 'all' && inv.status !== filter) return false;
+
+        // Date Filter
+        if (dateFilter !== 'all') {
+            const invDate = new Date(inv.createdAt);
+            const now = new Date();
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            
+            if (dateFilter === 'today') {
+                if (invDate < todayStart) return false;
+            } else if (dateFilter === 'week') {
+                const weekStart = new Date(now);
+                weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+                weekStart.setHours(0, 0, 0, 0);
+                if (invDate < weekStart) return false;
+            } else if (dateFilter === 'month') {
+                const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                if (invDate < monthStart) return false;
+            }
+        }
+
         const term = searchTerm.toLowerCase();
         if (!term) return true;
         const seqNum = inv.sequentialNumber || inv.invoiceNumber || '';
@@ -587,7 +653,13 @@ export default function InvoiceFrontend(props) {
           || (inv.customer?.phone || '').includes(term);
       })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [invoices, filter, searchTerm]);
+  }, [invoices, dateFilter, searchTerm]); // Removed filter dependency
+
+  // NEW: Fetch invoices when filter (status) changes
+  useEffect(() => {
+      // If 'deleted', fetch deleted. If 'all', fetch all active. If specific status, fetch that status.
+      fetchInvoices({ status: filter });
+  }, [filter, fetchInvoices]);
 
   const filteredInvoices = sortedAndFilteredInvoices; 
   
@@ -803,8 +875,31 @@ const handleEditInvoice = useCallback((invoice) => {
     const seqNum = formatOfficialInvoiceNumber(invoice);
     
     setEditingInvoice({ ...invoice, sequentialNumber: seqNum }); 
-    setSelectedCustomer(invoice.customer?._id || invoice.customer);
-    setInvoiceItems(invoice.items || []);
+    
+    // Handle Customer State
+    const cust = invoice.customer;
+    if (cust && typeof cust === 'object') {
+        setSelectedCustomer(cust._id);
+        setSearchedCustomer(cust);
+        setCustomerSearch(cust.businessName || cust.name || cust.phone || '');
+    } else {
+        setSelectedCustomer(cust);
+        // If it's just an ID, we can't easily show name without finding it in customers list
+        // Try to find in customers prop if available (InvoiceFrontend has customers)
+        const found = customers.find(c => c._id === cust);
+        if (found) {
+            setSearchedCustomer(found);
+            setCustomerSearch(found.businessName || found.name || found.phone || '');
+        }
+    }
+    
+    // Normalize items to ensure product is an ID (not populated object) for the form
+    const normalizedItems = (invoice.items || []).map(item => ({
+        ...item,
+        product: (item.product && typeof item.product === 'object') ? item.product._id : item.product
+    }));
+    setInvoiceItems(normalizedItems);
+    
     setTaxDetails(invoice.taxDetails || { cgst: 9, sgst: 9, igst: 0, gstType: 'cgst_sgst' }); 
     setNotes(invoice.notes || '');
     setDueDate(invoice.dueDate ? new Date(invoice.dueDate).toISOString().split('T')[0] : ''); 
@@ -813,9 +908,9 @@ const handleEditInvoice = useCallback((invoice) => {
 }, [formatOfficialInvoiceNumber, setInvoiceItems, setTaxDetails, setNotes, setDueDate, setPaymentType, setSelectedCustomer]);
   
   const handleDeleteInvoice = useCallback(async (invoiceId) => {
-    if (!window.confirm('Are you sure you want to delete this invoice?')) return;
-    await deleteInvoice(invoiceId);
-  }, [deleteInvoice]);
+    if (!window.confirm('Are you sure you want to move this invoice to trash? It will be hidden from the main list.')) return;
+    await deleteInvoice(invoiceId, { status: filter });
+  }, [deleteInvoice, filter]);
 
 // 🟢 UPDATED: LOGO INTEGRATION IN PRINT/PDF HANDLER
   // Helper to convert image to base64
@@ -926,69 +1021,112 @@ const handleEditInvoice = useCallback((invoice) => {
             </div>
 
             <div class="section">
-              <table style="width: 50%; margin-left: auto;">
-                <tbody>
-                  <tr>
-                    <td><strong>Taxable Subtotal</strong></td>
-                    <td class="text-right">${formatCurrency(invoice.subtotal)}</td>
-                  </tr>
-                  ${(() => {
-                    // Fallback to average tax display if breakdown missing (backward compatibility)
-                    if (!invoice.breakdown || invoice.breakdown.length === 0) {
-                        if (invoice.taxDetails?.gstType === 'cgst_sgst') {
-                            return `
-                                <tr>
-                                  <td>CGST (${invoice.taxDetails?.cgst?.toFixed(2)}%)</td>
-                                  <td class="text-right">${formatCurrency(invoice.taxDetails?.cgstAmount)}</td>
-                                </tr>
-                                <tr>
-                                  <td>SGST (${invoice.taxDetails?.sgst?.toFixed(2)}%)</td>
-                                  <td class="text-right">${formatCurrency(invoice.taxDetails?.sgstAmount)}</td>
-                                </tr>
-                            `;
-                        } else {
-                            return `
-                                <tr>
-                                  <td>IGST (${invoice.taxDetails?.igst?.toFixed(2)}%)</td>
-                                  <td class="text-right">${formatCurrency(invoice.taxDetails?.igstAmount)}</td>
-                                </tr>
-                            `;
-                        }
-                    }
+              <div style="display: flex; justify-content: flex-end;">
+                 <table style="width: 40%; border-collapse: collapse;">
+                    <tr>
+                        <td style="border: none; padding: 5px; text-align: right;"><strong>Taxable Amount:</strong></td>
+                        <td style="border: none; padding: 5px; text-align: right;">${formatCurrency(invoice.subtotal)}</td>
+                    </tr>
+                    <tr>
+                        <td style="border: none; padding: 5px; text-align: right;"><strong>Total Tax:</strong></td>
+                        <td style="border: none; padding: 5px; text-align: right;">${formatCurrency(invoice.taxDetails?.totalTax || 0)}</td>
+                    </tr>
+                    <tr style="font-size: 14px; border-top: 1px solid #ddd;">
+                        <td style="border: none; padding: 10px 5px; text-align: right;"><strong>Grand Total:</strong></td>
+                        <td style="border: none; padding: 10px 5px; text-align: right;"><strong>${formatCurrency(invoice.total)}</strong></td>
+                    </tr>
+                 </table>
+              </div>
+            </div>
 
-                    // Render breakdown by rate
-                    return invoice.breakdown.map(b => {
-                        const rate = Number(b.rate);
-                        const tax = Number(b.tax);
-                        if (invoice.taxDetails?.gstType === 'cgst_sgst') {
-                            const halfRate = rate / 2;
-                            const halfTax = tax / 2;
-                            return `
-                                <tr>
-                                  <td>CGST (${halfRate}%)</td>
-                                  <td class="text-right">${formatCurrency(halfTax)}</td>
-                                </tr>
-                                <tr>
-                                  <td>SGST (${halfRate}%)</td>
-                                  <td class="text-right">${formatCurrency(halfTax)}</td>
-                                </tr>
-                            `;
-                        } else {
-                            return `
-                                <tr>
-                                  <td>IGST (${rate}%)</td>
-                                  <td class="text-right">${formatCurrency(tax)}</td>
-                                </tr>
-                            `;
+            <div class="section">
+                <h3>Tax Analysis</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th rowspan="2">Tax Rate</th>
+                      <th rowspan="2" class="text-right">Taxable Value</th>
+                      ${invoice.taxDetails?.gstType === 'cgst_sgst' ? `
+                          <th colspan="2" class="text-center">CGST</th>
+                          <th colspan="2" class="text-center">SGST</th>
+                      ` : `
+                          <th colspan="2" class="text-center">IGST</th>
+                      `}
+                      <th rowspan="2" class="text-right">Total Tax</th>
+                    </tr>
+                    <tr>
+                       ${invoice.taxDetails?.gstType === 'cgst_sgst' ? `
+                           <th class="text-right">Rate</th>
+                           <th class="text-right">Amount</th>
+                           <th class="text-right">Rate</th>
+                           <th class="text-right">Amount</th>
+                       ` : `
+                           <th class="text-right">Rate</th>
+                           <th class="text-right">Amount</th>
+                       `}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${(() => {
+                        // Ensure we have a breakdown
+                        let breakdown = invoice.breakdown;
+                        if (!breakdown || breakdown.length === 0) {
+                             // Attempt to reconstruct simple breakdown from total if missing (fallback)
+                             breakdown = [{
+                                 rate: (invoice.taxDetails?.totalTax / invoice.subtotal * 100) || 0,
+                                 taxable: invoice.subtotal,
+                                 tax: invoice.taxDetails?.totalTax
+                             }];
                         }
-                    }).join('');
-                  })()}
-                  <tr class="total-row">
-                    <td><strong>Total Amount</strong></td>
-                    <td class="text-right"><strong>${formatCurrency(invoice.total)}</strong></td>
-                  </tr>
-                </tbody>
-              </table>
+
+                        return breakdown.map(b => {
+                            const rate = Number(b.rate || 0);
+                            const taxable = Number(b.taxable || 0);
+                            const tax = Number(b.tax || 0);
+                            
+                            if (invoice.taxDetails?.gstType === 'cgst_sgst') {
+                                const halfRate = rate / 2;
+                                const halfTax = tax / 2;
+                                return `
+                                    <tr>
+                                      <td>GST ${rate}%</td>
+                                      <td class="text-right">${formatCurrency(taxable)}</td>
+                                      <td class="text-right">${halfRate}%</td>
+                                      <td class="text-right">${formatCurrency(halfTax)}</td>
+                                      <td class="text-right">${halfRate}%</td>
+                                      <td class="text-right">${formatCurrency(halfTax)}</td>
+                                      <td class="text-right">${formatCurrency(tax)}</td>
+                                    </tr>
+                                `;
+                            } else {
+                                return `
+                                    <tr>
+                                      <td>IGST ${rate}%</td>
+                                      <td class="text-right">${formatCurrency(taxable)}</td>
+                                      <td class="text-right">${rate}%</td>
+                                      <td class="text-right">${formatCurrency(tax)}</td>
+                                      <td class="text-right">${formatCurrency(tax)}</td>
+                                    </tr>
+                                `;
+                            }
+                        }).join('');
+                    })()}
+                    <tr class="total-row">
+                        <td><strong>Total</strong></td>
+                        <td class="text-right"><strong>${formatCurrency(invoice.subtotal)}</strong></td>
+                         ${invoice.taxDetails?.gstType === 'cgst_sgst' ? `
+                           <td></td>
+                           <td class="text-right"><strong>${formatCurrency(invoice.taxDetails?.cgstAmount || 0)}</strong></td>
+                           <td></td>
+                           <td class="text-right"><strong>${formatCurrency(invoice.taxDetails?.sgstAmount || 0)}</strong></td>
+                       ` : `
+                           <td></td>
+                           <td class="text-right"><strong>${formatCurrency(invoice.taxDetails?.igstAmount || 0)}</strong></td>
+                       `}
+                        <td class="text-right"><strong>${formatCurrency(invoice.taxDetails?.totalTax || 0)}</strong></td>
+                    </tr>
+                  </tbody>
+                </table>
             </div>
             
             <div class="section" style="border-top: 1px solid #ddd; padding-top: 10px;">
@@ -1098,7 +1236,7 @@ const handleEditInvoice = useCallback((invoice) => {
         <Col lg={3} md={6}>
           <StatCard
             title="Total Invoices"
-            value={invoiceSummary.totalCount}
+            value={invoiceStats?.totalCount || 0} // Use backend stats
             subtitle="All time created"
             icon={FileText}
             color="primary"
@@ -1107,7 +1245,7 @@ const handleEditInvoice = useCallback((invoice) => {
         <Col lg={3} md={6}>
           <StatCard
             title="Total Revenue"
-            value={formatCurrency(invoiceSummary.totalRevenue)}
+            value={formatCurrency(invoiceStats?.totalRevenue || 0)} // Use backend stats
             subtitle="Total value generated"
             icon={TrendingUp}
             color="success"
@@ -1116,7 +1254,7 @@ const handleEditInvoice = useCallback((invoice) => {
         <Col lg={3} md={6}>
           <StatCard
             title="Pending/Draft"
-            value={invoiceSummary.pendingCount}
+            value={(invoiceStats?.pendingCount || 0) + (invoiceStats?.draftCount || 0)} // Use backend stats
             subtitle="Awaiting payment"
             icon={Clock}
             color="warning"
@@ -1125,7 +1263,7 @@ const handleEditInvoice = useCallback((invoice) => {
         <Col lg={3} md={6}>
           <StatCard
             title="Overdue"
-            value={invoiceSummary.overdueCount}
+            value={invoiceStats?.overdueCount || 0} // Use backend stats
             subtitle="Action required"
             icon={AlertTriangle}
             color="danger"
@@ -1152,9 +1290,18 @@ const handleEditInvoice = useCallback((invoice) => {
                 <option value="paid">Paid</option>
                 <option value="pending">Pending</option>
                 <option value="overdue">Overdue</option>
+                <option value="deleted">Trash (Deleted)</option>
               </Form.Select>
             </Col>
-            <Col md={9}>
+            <Col md={3}>
+               <Form.Select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="bg-white">
+                  <option value="all">Filter by Date...</option>
+                  <option value="today">Today</option>
+                  <option value="week">This Week</option>
+                  <option value="month">This Month</option>
+               </Form.Select>
+            </Col>
+            <Col md={6}>
               {/* FIXED SEARCH BAR USING InputGroup */}
               <InputGroup>
                 <InputGroup.Text>
@@ -1186,28 +1333,28 @@ const handleEditInvoice = useCallback((invoice) => {
             </div>
           ) : (
             <div className="table-responsive flex-grow-1">
-              <Table hover className="mb-0 table-sm"> 
+              <Table hover className="mb-0 align-middle"> 
               <thead className="bg-light">
                 <tr>
-                  <th>Invoice #</th>
-                  <th>Customer</th>
-                  <th>Amount ({currencySymbol})</th>
-                  <th>Status</th>
-                  <th>Date</th> 
-                  <th>Actions</th>
+                  <th className="ps-4 py-3">Invoice #</th>
+                  <th className="py-3">Customer</th>
+                  <th className="py-3">Amount ({currencySymbol})</th>
+                  <th className="py-3">Status</th>
+                  <th className="py-3">Date</th> 
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredInvoices.map((inv) => (
                   <tr key={inv._id}>
-                    <td className="fw-semibold">
+                    <td className="fw-semibold ps-4 py-3">
                       <div className='d-flex flex-column'>
                         <span className='fw-bold text-primary'>
                           #{formatOfficialInvoiceNumber(inv)}
                         </span>
                       </div>
                     </td>
-                    <td>
+                    <td className="py-3">
                       <div className="d-flex align-items-center">
                             {/* 1. Icon/Avatar Block (Child 1) */}
                             <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2" style={{ width: '32px', height: '32px' }}>
@@ -1225,39 +1372,64 @@ const handleEditInvoice = useCallback((invoice) => {
                             </div>
                         </div>
                     </td>
-                    <td className="fw-bold">{formatCurrency(inv.total)}</td>
-                    <td>
+                    <td className="fw-bold py-3">{formatCurrency(inv.total)}</td>
+                    <td className="py-3">
                       <Badge bg={getStatusVariant(inv.status)} className="rounded-pill text-uppercase px-3 py-2 fw-bold">
                         {inv.status}
                       </Badge>
                     </td>
-                    <td>
+                    <td className="py-3">
                       {new Date(inv.createdAt).toLocaleDateString()}
                     </td>
-                    <td>
+                    <td className="py-3">
                       <Dropdown>
                         <Dropdown.Toggle 
-                          variant="outline-secondary" 
-                          size="sm" 
-                          className="border-0 p-1"
-                          aria-label="Invoice actions"
+                          as={CustomToggle}
+                          id={`dropdown-actions-${inv._id}`}
                         >
-                          <MoreVertical size={16} />
+                           <ChevronDown size={18} />
                         </Dropdown.Toggle>
                         <Dropdown.Menu>
+                          {/* VIEW DETAILS - Available for all */}
                           <Dropdown.Item onClick={() => { setCurrentInvoice({...inv, sequentialNumber: formatOfficialInvoiceNumber(inv)}); setShowInvoicePreview(true); }}>
                             <Eye size={16} className="me-2" />View Details
                           </Dropdown.Item>
-                          <Dropdown.Item onClick={() => handleEditInvoice(inv)}>
-                            <Edit size={16} className="me-2" />Edit Invoice
-                          </Dropdown.Item>
-                          <Dropdown.Item onClick={() => handleDownloadPDF(inv._id)}>
-                            <Download size={16} className="me-2" />Download PDF
-                          </Dropdown.Item>
-                          <Dropdown.Divider />
-                          <Dropdown.Item className="text-danger" onClick={() => handleDeleteInvoice(inv._id)}>
-                            <Trash2 size={16} className="me-2" />Delete
-                          </Dropdown.Item>
+
+                          {filter === 'deleted' ? (
+                              // --- ACTIONS FOR DELETED INVOICES ---
+                              <>
+                                  {user?.role === 'admin' ? (
+                                      <Dropdown.Item onClick={() => restoreInvoice(inv._id, { status: filter })} className="text-success">
+                                        <Box size={16} className="me-2" />Restore
+                                      </Dropdown.Item>
+                                  ) : null}
+                              </>
+                          ) : (
+                              // --- ACTIONS FOR ACTIVE INVOICES ---
+                              <>
+                                  {user?.role === 'admin' ? (
+                                    <Dropdown.Item onClick={() => handleEditInvoice(inv)}>
+                                      <Edit size={16} className="me-2 text-warning" />Edit Invoice
+                                    </Dropdown.Item>
+                                  ) : (
+                                    <Dropdown.Item 
+                                      disabled
+                                      className="text-muted"
+                                      style={{ cursor: 'not-allowed', opacity: 0.6 }}
+                                      title="Only Admins can edit invoices"
+                                    >
+                                      <Edit size={16} className="me-2" />Edit (Admin Only)
+                                    </Dropdown.Item>
+                                  )}
+                                  <Dropdown.Item onClick={() => handleDownloadPDF(inv._id)}>
+                                    <Download size={16} className="me-2" />Download PDF
+                                  </Dropdown.Item>
+                                  <Dropdown.Divider />
+                                  <Dropdown.Item className="text-danger" onClick={() => handleDeleteInvoice(inv._id)}>
+                                    <Trash2 size={16} className="me-2" />Move to Trash
+                                  </Dropdown.Item>
+                              </>
+                          )}
                         </Dropdown.Menu>
                       </Dropdown>
                     </td>
@@ -1328,6 +1500,7 @@ const handleEditInvoice = useCallback((invoice) => {
               customers={customers}
               handleDeselectCustomer={handleDeselectCustomer}
               showAlert={showAlert}
+              originalItems={editingInvoice?.items || []}
             />
           </Modal.Body>
       </Modal>
@@ -1424,77 +1597,118 @@ const handleEditInvoice = useCallback((invoice) => {
                         </Table>
 
                         <Row>
-                            <Col md={6}></Col>
-                            <Col md={6}>
+                            <Col md={7}></Col>
+                            <Col md={5}>
                                 <Table className='table-sm'>
                                     <tbody>
                                         <tr>
-                                            <td><strong>Taxable Subtotal</strong></td>
+                                            <td><strong>Taxable Amount</strong></td>
                                             <td className="text-end">{formatCurrency(currentInvoice.subtotal)}</td>
                                         </tr>
-                                        {(() => {
-                                            if (!currentInvoice.breakdown || currentInvoice.breakdown.length === 0) {
-                                                // Fallback
-                                                if (currentInvoice.taxDetails?.gstType === 'cgst_sgst' && currentInvoice.taxDetails?.cgstAmount > 0) {
-                                                    return (
-                                                        <>
-                                                            <tr>
-                                                                <td>CGST ({currentInvoice.taxDetails?.cgst?.toFixed(2)}%)</td>
-                                                                <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.cgstAmount)}</td>
-                                                            </tr>
-                                                            <tr>
-                                                                <td>SGST ({currentInvoice.taxDetails?.sgst?.toFixed(2)}%)</td>
-                                                                <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.sgstAmount)}</td>
-                                                            </tr>
-                                                        </>
-                                                    );
-                                                } else if (currentInvoice.taxDetails?.totalTax > 0) {
-                                                    return (
-                                                        <tr>
-                                                            <td>IGST/Total Tax</td>
-                                                            <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.totalTax)}</td>
-                                                        </tr>
-                                                    );
-                                                }
-                                                return null;
-                                            }
-
-                                            return currentInvoice.breakdown.map((b, idx) => {
-                                                const rate = Number(b.rate);
-                                                const tax = Number(b.tax);
-                                                if (currentInvoice.taxDetails?.gstType === 'cgst_sgst') {
-                                                    const halfRate = rate / 2;
-                                                    const halfTax = tax / 2;
-                                                    return (
-                                                        <React.Fragment key={idx}>
-                                                            <tr>
-                                                                <td>CGST ({halfRate}%)</td>
-                                                                <td className="text-end">{formatCurrency(halfTax)}</td>
-                                                            </tr>
-                                                            <tr>
-                                                                <td>SGST ({halfRate}%)</td>
-                                                                <td className="text-end">{formatCurrency(halfTax)}</td>
-                                                            </tr>
-                                                        </React.Fragment>
-                                                    );
-                                                } else {
-                                                    return (
-                                                        <tr key={idx}>
-                                                            <td>IGST ({rate}%)</td>
-                                                            <td className="text-end">{formatCurrency(tax)}</td>
-                                                        </tr>
-                                                    );
-                                                }
-                                            });
-                                        })()}
-                                        <tr className="fw-bold fs-5 text-success">
-                                            <td>Total</td>
-                                            <td className="text-end"><strong>{formatCurrency(currentInvoice.total)}</strong></td>
+                                        <tr>
+                                            <td><strong>Total Tax</strong></td>
+                                            <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.totalTax || 0)}</td>
+                                        </tr>
+                                        <tr className="fw-bold fs-5 text-success border-top">
+                                            <td>Grand Total</td>
+                                            <td className="text-end">{formatCurrency(currentInvoice.total)}</td>
                                         </tr>
                                     </tbody>
                                 </Table>
                             </Col>
                         </Row>
+
+                        {/* Tax Analysis Table (Full Width) */}
+                        <div className="mt-3">
+                            <h6 className="fw-bold text-secondary border-bottom pb-2">Tax Analysis</h6>
+                            <Table bordered hover size="sm" className="mb-0 small">
+                                <thead className="bg-light">
+                                    <tr>
+                                        <th rowSpan={2} className="align-middle text-center">Tax Rate</th>
+                                        <th rowSpan={2} className="align-middle text-end">Taxable Value</th>
+                                        {currentInvoice.taxDetails?.gstType === 'cgst_sgst' ? (
+                                           <>
+                                              <th colSpan={2} className="text-center">CGST</th>
+                                              <th colSpan={2} className="text-center">SGST</th>
+                                           </>
+                                        ) : (
+                                           <th colSpan={2} className="text-center">IGST</th>
+                                        )}
+                                        <th rowSpan={2} className="align-middle text-end">Total Tax</th>
+                                    </tr>
+                                    <tr>
+                                       {currentInvoice.taxDetails?.gstType === 'cgst_sgst' ? (
+                                           <>
+                                               <th className="text-center">Rate</th><th className="text-end">Amt</th>
+                                               <th className="text-center">Rate</th><th className="text-end">Amt</th>
+                                           </>
+                                       ) : (
+                                           <>
+                                               <th className="text-center">Rate</th><th className="text-end">Amt</th>
+                                           </>
+                                       )}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(() => {
+                                         let breakdown = currentInvoice.breakdown;
+                                         if (!breakdown || breakdown.length === 0) {
+                                              breakdown = [{
+                                                  rate: (currentInvoice.taxDetails?.totalTax / currentInvoice.subtotal * 100) || 0,
+                                                  taxable: currentInvoice.subtotal,
+                                                  tax: currentInvoice.taxDetails?.totalTax
+                                              }];
+                                         }
+
+                                         return breakdown.map((b, idx) => {
+                                             const rate = Number(b.rate || 0);
+                                             const taxable = Number(b.taxable || 0);
+                                             const tax = Number(b.tax || 0);
+
+                                             if (currentInvoice.taxDetails?.gstType === 'cgst_sgst') {
+                                                 const halfRate = rate / 2;
+                                                 const halfTax = tax / 2;
+                                                 return (
+                                                     <tr key={idx}>
+                                                         <td className="text-center">{rate}%</td>
+                                                         <td className="text-end">{formatCurrency(taxable)}</td>
+                                                         <td className="text-center">{halfRate}%</td>
+                                                         <td className="text-end">{formatCurrency(halfTax)}</td>
+                                                         <td className="text-center">{halfRate}%</td>
+                                                         <td className="text-end">{formatCurrency(halfTax)}</td>
+                                                         <td className="text-end">{formatCurrency(tax)}</td>
+                                                     </tr>
+                                                 );
+                                             } else {
+                                                 return (
+                                                     <tr key={idx}>
+                                                         <td className="text-center">{rate}%</td>
+                                                         <td className="text-end">{formatCurrency(taxable)}</td>
+                                                         <td className="text-center">{rate}%</td>
+                                                         <td className="text-end">{formatCurrency(tax)}</td>
+                                                         <td className="text-end">{formatCurrency(tax)}</td>
+                                                     </tr>
+                                                 );
+                                             }
+                                         });
+                                    })()}
+                                    {/* Totals Row */}
+                                     <tr className="fw-bold bg-light">
+                                         <td className="text-center">Total</td>
+                                         <td className="text-end">{formatCurrency(currentInvoice.subtotal)}</td>
+                                         {currentInvoice.taxDetails?.gstType === 'cgst_sgst' ? (
+                                            <>
+                                               <td></td><td className="text-end">{formatCurrency(currentInvoice.taxDetails?.cgstAmount||0)}</td>
+                                               <td></td><td className="text-end">{formatCurrency(currentInvoice.taxDetails?.sgstAmount||0)}</td>
+                                            </>
+                                         ) : (
+                                            <><td></td><td className="text-end">{formatCurrency(currentInvoice.taxDetails?.igstAmount||0)}</td></>
+                                         )}
+                                         <td className="text-end">{formatCurrency(currentInvoice.taxDetails?.totalTax||0)}</td>
+                                     </tr>
+                                </tbody>
+                            </Table>
+                        </div>
 
                         {currentInvoice.notes && (
                             <div className="mt-4">

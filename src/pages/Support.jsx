@@ -1,11 +1,160 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Container, Form, Button, Row, Col, Alert, InputGroup, Table, Spinner, Badge, Modal } from 'react-bootstrap';
-import { Search, Mail, Phone, MessageSquare, BookOpen, Download, HelpCircle, Clock, Copy, PhoneCall } from 'lucide-react';
+import { Card, Container, Form, Button, Row, Col, Alert, Table, Spinner, Badge, Modal } from 'react-bootstrap';
+import { Mail, Phone, MessageSquare, Eye, RefreshCw, Plus, CheckCircle, PhoneCall, Copy, Search, HelpCircle, Download, BookOpen, Clock } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
+import { useAuth } from '../context/AuthContext';
 
 // API Endpoint for submitting new tickets
 const SUPPORT_API_BASE_URL = `${API_BASE_URL}/support`;
+
+
+
+const EmailSupportModal = ({ show, onHide, handleCopyEmail }) => (
+    <Modal show={show} onHide={onHide} centered>
+        <Modal.Header closeButton className="px-4 py-3">
+            <Modal.Title className="fw-bold text-primary d-flex align-items-center">
+                <Mail size={24} className="me-2" /> Email Support
+            </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="px-4 py-4 text-center">
+            <p className="mb-3">For support inquiries, you can email us directly at:</p>
+            <h4 className="fw-bold mb-4">support@example.com</h4>
+            <Button variant="outline-primary" onClick={handleCopyEmail} className="px-4 py-2">
+                <Copy size={16} className="me-2" /> Copy Email Address
+            </Button>
+        </Modal.Body>
+        <Modal.Footer className="px-4 py-3">
+            <Button variant="secondary" onClick={onHide} className="px-4">Close</Button>
+        </Modal.Footer>
+    </Modal>
+);
+
+const PhoneSupportModal = ({ show, onHide }) => (
+    <Modal show={show} onHide={onHide} centered>
+        <Modal.Header closeButton className="px-4 py-3">
+            <Modal.Title className="fw-bold text-primary d-flex align-items-center">
+                <Phone size={24} className="me-2" /> Phone Support
+            </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="px-4 py-4 text-center">
+            <p className="mb-3">For urgent assistance, please call our support hotline:</p>
+            <h4 className="fw-bold mb-4">123-456-7890</h4>
+            <Button variant="primary" href="tel:1234567890" className="px-4 py-2">
+                <PhoneCall size={16} className="me-2" /> Call Now
+            </Button>
+        </Modal.Body>
+        <Modal.Footer className="px-4 py-3">
+            <Button variant="secondary" onClick={onHide} className="px-4">Close</Button>
+        </Modal.Footer>
+    </Modal>
+);
+
+const NewTicketModal = ({ show, onHide, formData, handleFormChange, handleFormSubmit, submitting }) => (
+    <Modal show={show} onHide={onHide} size="lg" centered>
+         <Modal.Header closeButton className="px-4 py-3">
+            <Modal.Title className="fw-bold text-primary d-flex align-items-center">
+                <MessageSquare size={24} className="me-2" /> Submit New Ticket
+            </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="p-4">
+             <Form onSubmit={handleFormSubmit}>
+                <Row className="g-3">
+                    <Col md={6}>
+                        <Form.Group>
+                            <Form.Label className="fw-bold mb-2">Your Name *</Form.Label>
+                            <Form.Control 
+                                type="text" 
+                                name="name" 
+                                placeholder="Full Name" 
+                                value={formData.name} 
+                                onChange={handleFormChange} 
+                                required 
+                                className="py-2"
+                            />
+                        </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                        <Form.Group>
+                            <Form.Label className="fw-bold mb-2">Your Email Address *</Form.Label>
+                            <Form.Control 
+                                type="email" 
+                                name="email" 
+                                placeholder="Work Email" 
+                                value={formData.email} 
+                                onChange={handleFormChange} 
+                                required 
+                                className="py-2"
+                            />
+                        </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                        <Form.Group>
+                            <Form.Label className="fw-bold mb-2">Subject *</Form.Label>
+                            <Form.Control 
+                                type="text" 
+                                name="subject" 
+                                placeholder="Brief description of your issue" 
+                                value={formData.subject} 
+                                onChange={handleFormChange} 
+                                required 
+                                className="py-2"
+                            />
+                        </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                        <Form.Group>
+                            <Form.Label className="fw-bold mb-2">Department *</Form.Label>
+                            <Form.Select 
+                                name="department" 
+                                value={formData.department} 
+                                onChange={handleFormChange} 
+                                required 
+                                className="py-2"
+                            >
+                                <option value="technical">Technical Support</option>
+                                <option value="billing">Billing & Payments</option>
+                                <option value="feature">Feature Request</option>
+                                <option value="account">Account Management</option>
+                            </Form.Select>
+                        </Form.Group>
+                    </Col>
+                    <Col md={12}>
+                        <Form.Group>
+                            <Form.Label className="fw-bold mb-2">Message / Details *</Form.Label>
+                            <Form.Control 
+                                as="textarea" 
+                                rows={4} 
+                                name="message" 
+                                placeholder="Describe the issue, including steps to reproduce, if applicable." 
+                                value={formData.message} 
+                                onChange={handleFormChange} 
+                                required 
+                                className="py-2"
+                            />
+                        </Form.Group>
+                    </Col>
+                </Row>
+                <div className="d-flex justify-content-end mt-4">
+                    <Button variant="secondary" onClick={onHide} className="me-2 px-4">Cancel</Button>
+                    <Button 
+                        type="submit" 
+                        variant="primary" 
+                        className="px-4 fw-bold" 
+                        disabled={submitting}
+                    >
+                        {submitting ? (
+                            <>
+                                <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" className="me-2" />
+                                Submitting...
+                            </>
+                        ) : 'Submit Ticket'}
+                    </Button>
+                </div>
+            </Form>
+        </Modal.Body>
+    </Modal>
+);
 
 const Support = () => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -27,6 +176,10 @@ const Support = () => {
     // States for the support modals
     const [showEmailModal, setShowEmailModal] = useState(false);
     const [showPhoneModal, setShowPhoneModal] = useState(false);
+    const [showNewTicketModal, setShowNewTicketModal] = useState(false);
+
+    // Auth context for role check
+    const { user } = useAuth(); // Ensure useAuth is imported
 
     const getAuthHeaders = () => {
         const token = localStorage.getItem('token');
@@ -58,13 +211,6 @@ const Support = () => {
         fetchMyTickets();
     }, []);
 
-    const handleSearch = (e) => {
-        e.preventDefault();
-        if (searchTerm.trim() !== '') {
-            showAlert(`Simulating search for: "${searchTerm}". (KB Lookup not implemented)`, 'info');
-        }
-    };
-
     const handleFormChange = (e) => {
         const { name, value } = e.target;
         setFormData(prevState => ({
@@ -95,22 +241,13 @@ const Support = () => {
             
             showAlert(`Ticket #${response.data.ticketId} submitted successfully!`, 'success');
             resetForm();
+            setShowNewTicketModal(false);
             fetchMyTickets();
         } catch (error) {
             console.error('Ticket submission failed:', error.response?.data || error);
             showAlert(`Failed to submit ticket. Error: ${error.response?.data?.message || 'Server error.'}`, 'danger');
         } finally {
             setSubmitting(false);
-        }
-    };
-
-    const handleCardClick = (title) => {
-        if (title === 'Email Support') {
-            setShowEmailModal(true);
-        } else if (title === 'Phone Support') {
-            setShowPhoneModal(true);
-        } else {
-            showAlert(`Simulating action: ${title}`, 'info');
         }
     };
 
@@ -125,234 +262,141 @@ const Support = () => {
 
     const getStatusBadge = (status) => {
         switch (status) {
-            case 'Open': return <Badge bg="danger">Open</Badge>;
-            case 'In Progress': return <Badge bg="warning" text="dark">In Progress</Badge>;
-            case 'Closed': return <Badge bg="success">Closed</Badge>;
-            default: return <Badge bg="secondary">{status}</Badge>;
+            case 'Open': return <Badge bg="danger" className="px-3 py-1">Open</Badge>;
+            case 'In Progress': return <Badge bg="warning" text="dark" className="px-3 py-1">In Progress</Badge>;
+            case 'Closed': return <Badge bg="success" className="px-3 py-1">Closed</Badge>;
+            default: return <Badge bg="secondary" className="px-3 py-1">{status}</Badge>;
         }
     };
 
-    const renderTicketTable = () => (
-        <Table responsive hover className="mb-0">
-            <thead className="bg-light">
-                <tr>
-                    <th>Ticket ID</th>
-                    <th>Subject</th>
-                    <th>Department</th>
-                    <th>Status</th>
-                    <th>Date</th>
-                </tr>
-            </thead>
-            <tbody>
-                {tickets.map(ticket => (
-                    <tr key={ticket.ticketId}>
-                        <td className="fw-semibold text-primary">{ticket.ticketId}</td>
-                        <td>{ticket.subject}</td>
-                        <td>{ticket.department}</td>
-                        <td>{getStatusBadge(ticket.status)}</td>
-                        <td className="text-muted small">{new Date(ticket.createdAt).toLocaleString()}</td>
-                    </tr>
-                ))}
-            </tbody>
-        </Table>
-    );
-
-    const EmailSupportModal = () => (
-        <Modal show={showEmailModal} onHide={() => setShowEmailModal(false)} centered>
-            <Modal.Header closeButton>
-                <Modal.Title className="fw-bold text-primary"><Mail size={24} className="me-2" /> Email Support</Modal.Title>
-            </Modal.Header>
-            <Modal.Body className="text-center">
-                <p>For support inquiries, you can email us directly at:</p>
-                <h4 className="fw-bold mb-3">support@example.com</h4>
-                <Button variant="outline-primary" onClick={handleCopyEmail}>
-                    <Copy size={16} className="me-2" /> Copy Email Address
-                </Button>
-            </Modal.Body>
-            <Modal.Footer>
-                <Button variant="secondary" onClick={() => setShowEmailModal(false)}>Close</Button>
-            </Modal.Footer>
-        </Modal>
-    );
-
-    const PhoneSupportModal = () => (
-        <Modal show={showPhoneModal} onHide={() => setShowPhoneModal(false)} centered>
-            <Modal.Header closeButton>
-                <Modal.Title className="fw-bold text-primary"><Phone size={24} className="me-2" /> Phone Support</Modal.Title>
-            </Modal.Header>
-            <Modal.Body className="text-center">
-                <p>For urgent assistance, please call our support hotline:</p>
-                <h4 className="fw-bold mb-3">123-456-7890</h4>
-                <Button variant="primary" href="tel:1234567890">
-                    <PhoneCall size={16} className="me-2" /> Call Now
-                </Button>
-            </Modal.Body>
-            <Modal.Footer>
-                <Button variant="secondary" onClick={() => setShowPhoneModal(false)}>Close</Button>
-            </Modal.Footer>
-        </Modal>
-    );
-
     return (
-        <Container fluid className="p-4">
-            <Row className="mb-4 align-items-center">
-                <Col>
-                    <h2 className="text-dark fw-bold mb-1">Staff Support Portal</h2>
-                    <p className="text-muted mb-0">Quickly resolve issues or access vital resources.</p>
-                </Col>
-            </Row>
+        <Container fluid className="px-4 py-3">
+            <div className="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 className="text-dark fw-bold mb-1">Customer Support Hub</h2>
+                    <p className="text-muted mb-0">Manage incoming issue tickets and communication channels.</p>
+                </div>
+                <div>
+                     <Button 
+                        variant="primary" 
+                        onClick={() => setShowNewTicketModal(true)} 
+                        className="me-2 fw-bold shadow-sm"
+                    >
+                        <Plus size={18} className="me-2" /> New Ticket
+                    </Button>
+                    <Button 
+                        variant="primary" 
+                        onClick={fetchMyTickets} 
+                        className="fw-bold shadow-sm"
+                    >
+                        <RefreshCw size={18} className="me-2" /> Refresh Data
+                    </Button>
+                </div>
+            </div>
             
             {alert.show && (
-                <Alert variant={alert.type} className="mb-3" dismissible onClose={() => showAlert('', 'hidden')}>
+                <Alert variant={alert.type} className="mb-4" dismissible onClose={() => setAlert({ show: false, message: '', type: '' })}>
                     {alert.message}
                 </Alert>
             )}
 
-            <Card className="mb-4 shadow-sm border-0">
-                <Card.Body>
-                    <h5 className="text-primary mb-3"><BookOpen size={20} className="me-2" /> Search Knowledge Base</h5>
-                    <Form className="d-flex" onSubmit={handleSearch}>
-                        <InputGroup style={{ maxWidth: '600px' }}>
-                            <Form.Control type="text" placeholder="Search FAQs, guides, or troubleshooting steps..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                            <Button type="submit" variant="primary">
-                                <Search size={20} />
-                            </Button>
-                        </InputGroup>
-                    </Form>
-                </Card.Body>
-            </Card>
-            
-            <Card className="mb-4 shadow-sm border-0">
-                <Card.Body className="p-4">
-                    <h5 className="text-dark mb-4"><HelpCircle size={20} className="me-2" /> Quick Actions & Contact</h5>
-                    <Row className="g-4 text-center">
-                        <Col md={3}>
-                            <div onClick={() => handleCardClick('Video Guides')} className="p-3 border rounded-3 bg-light cursor-pointer hover-shadow" style={{ cursor: 'pointer' }}>
-                                <Download size={24} className="text-info mb-2" />
-                                <div className="fw-semibold small">Video Guides</div>
-                            </div>
-                        </Col>
-                        <Col md={3}>
-                            <div onClick={() => handleCardClick('Internal Docs')} className="p-3 border rounded-3 bg-light cursor-pointer hover-shadow" style={{ cursor: 'pointer' }}>
-                                <BookOpen size={24} className="text-success mb-2" />
-                                <div className="fw-semibold small">Internal Docs</div>
-                            </div>
-                        </Col>
-                        <Col md={3}>
-                            <div onClick={() => handleCardClick('Phone Support')} className="p-3 border rounded-3 bg-light cursor-pointer hover-shadow" style={{ cursor: 'pointer' }}>
-                                <Phone size={24} className="text-warning mb-2" />
-                                <div className="fw-semibold small">Phone Support</div>
-                            </div>
-                        </Col>
-                        <Col md={3}>
-                            <div onClick={() => handleCardClick('Email Support')} className="p-3 border rounded-3 bg-light cursor-pointer hover-shadow" style={{ cursor: 'pointer' }}>
-                                <Mail size={24} className="text-primary mb-2" />
-                                <div className="fw-semibold small">Email Support</div>
-                            </div>
-                        </Col>
-                    </Row>
-                </Card.Body>
-            </Card>
-            
             <Card className="shadow-sm border-0">
-                <Card.Body className="p-4">
-                    <h5 className="text-dark mb-4"><MessageSquare size={20} className="me-2" /> Submit a New Issue Ticket</h5>
-                    <Form onSubmit={handleFormSubmit}>
-                        <Row>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Your Name *</Form.Label>
-                                    <Form.Control type="text" name="name" placeholder="Full Name" value={formData.name} onChange={handleFormChange} required />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Your Email Address *</Form.Label>
-                                    <Form.Control type="email" name="email" placeholder="Work Email" value={formData.email} onChange={handleFormChange} required />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Subject *</Form.Label>
-                                    <Form.Control type="text" name="subject" placeholder="Brief description of your issue" value={formData.subject} onChange={handleFormChange} required />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Department *</Form.Label>
-                                    <Form.Select name="department" value={formData.department} onChange={handleFormChange} required>
-                                        <option value="technical">Technical Support</option>
-                                        <option value="billing">Billing & Payments</option>
-                                        <option value="feature">Feature Request</option>
-                                        <option value="account">Account Management</option>
-                                    </Form.Select>
-                                </Form.Group>
-                            </Col>
-                            <Col md={12}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Message / Details *</Form.Label>
-                                    <Form.Control as="textarea" rows={4} name="message" placeholder="Describe the issue, including steps to reproduce, if applicable." value={formData.message} onChange={handleFormChange} required />
-                                </Form.Group>
-                            </Col>
-                            <Col md={12}>
-                                <Button type="submit" variant="primary" disabled={submitting}>
-                                    {submitting ? 'Submitting...' : 'Submit Issue Ticket'}
-                                </Button>
-                            </Col>
-                        </Row>
-                    </Form>
-                </Card.Body>
-            </Card>
-
-            <Card className="shadow-sm border-0 mt-4">
-                <Card.Body className="p-4">
-                    <h5 className="text-dark mb-4"><Clock size={20} className="me-2" /> Raised Tickets</h5>
+                <Card.Body className="p-0">
+                     <div className="p-3 border-bottom">
+                         <h5 className="mb-0 fw-bold d-flex align-items-center">
+                            <MessageSquare size={20} className="me-2" /> Issue Tickets ({tickets.length})
+                        </h5>
+                     </div>
                     {loadingTickets ? (
-                        <div className="text-center py-3">
-                            <Spinner animation="border" size="sm" className="me-2" /> Loading your tickets...
+                        <div className="text-center py-5">
+                            <Spinner animation="border" variant="primary" />
+                            <p className="mt-2 text-muted">Loading tickets...</p>
                         </div>
                     ) : ticketError ? (
-                        <Alert variant="danger">{ticketError}</Alert>
+                        <div className="text-center py-5 text-danger">
+                            <Alert variant="danger" className="d-inline-block px-4">{ticketError}</Alert>
+                        </div>
                     ) : tickets.length > 0 ? (
-                        <Table responsive hover className="mb-0">
-                            <thead className="bg-light">
+                        <Table hover responsive className="mb-0 align-middle">
+                            <thead className="bg-light text-muted">
                                 <tr>
-                                    <th>Ticket ID</th>
-                                    <th>Subject</th>
-                                    <th>Department</th>
-                                    <th>Status</th>
-                                    <th>Date</th>
+                                    <th className="py-3 ps-4 border-bottom-0">Ticket ID</th>
+                                    <th className="py-3 ps-4 border-bottom-0">Subject</th>
+                                    <th className="py-3 ps-4 border-bottom-0">Customer</th>
+                                    <th className="py-3 ps-4 border-bottom-0">Department</th>
+                                    <th className="py-3 ps-4 border-bottom-0">Status</th>
+                                    <th className="py-3 ps-4 border-bottom-0">Submitted By</th>
+                                    <th className="py-3 ps-4 border-bottom-0">Date</th>
+                                    {/* Hide Actions for Staff */}
+                                    {user?.role !== 'staff' && <th className="py-3 ps-4 border-bottom-0 text-end pe-4">Actions</th>}
                                 </tr>
                             </thead>
                             <tbody>
                                 {tickets.map(ticket => (
                                     <tr key={ticket.ticketId}>
-                                        <td className="fw-semibold text-primary">{ticket.ticketId}</td>
-                                        <td>{ticket.subject}</td>
-                                        <td>{ticket.department}</td>
-                                        <td>{getStatusBadge(ticket.status)}</td>
-                                        <td className="text-muted small">{new Date(ticket.createdAt).toLocaleString()}</td>
+                                        <td className="py-3 ps-4 fw-bold text-primary">{ticket.ticketId}</td>
+                                        <td className="py-3 ps-4">{ticket.subject}</td>
+                                        <td className="py-3 ps-4">
+                                             <div className="d-flex align-items-center">
+                                                <span className="ms-0">{ticket.customerName}</span>
+                                            </div>
+                                        </td>
+                                        <td className="py-3 ps-4 text-capitalize">{ticket.department}</td>
+                                        <td className="py-3 ps-4">{getStatusBadge(ticket.status)}</td>
+                                        <td className="py-3 ps-4">{ticket.submittedBy?.username || 'N/A'}</td>
+                                        <td className="py-3 ps-4 text-muted">{new Date(ticket.createdAt).toLocaleDateString()}</td>
+                                        {/* Hide Actions for Staff */}
+                                        {user?.role !== 'staff' && (
+                                            <td className="py-3 ps-4 text-end pe-4">
+                                                <Button variant="link" className="text-primary p-0 me-3" title="View Details">
+                                                    <Eye size={18} />
+                                                </Button>
+                                                {ticket.status !== 'Closed' && (
+                                                    <Button variant="link" className="text-success p-0" title="Close Ticket">
+                                                        <CheckCircle size={18} />
+                                                    </Button>
+                                                )}
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>
                         </Table>
                     ) : (
-                        <div className="text-center py-4 text-muted">
-                            <p className="mb-0">You haven't submitted any support tickets yet.</p>
-                            <p className="small">Fill out the form above to get started!</p>
+                        <div className="text-center py-5 text-muted">
+                            <HelpCircle size={48} className="mb-3 text-secondary" opacity={0.5} />
+                            <h5>No tickets found</h5>
+                            <p>You haven't submitted any support tickets yet.</p>
+                            <Button variant="outline-primary" onClick={() => setShowNewTicketModal(true)}>
+                                Create Your First Ticket
+                            </Button>
                         </div>
                     )}
                 </Card.Body>
             </Card>
 
-            <EmailSupportModal />
-            <PhoneSupportModal />
+            <EmailSupportModal show={showEmailModal} onHide={() => setShowEmailModal(false)} handleCopyEmail={handleCopyEmail} />
+            <PhoneSupportModal show={showPhoneModal} onHide={() => setShowPhoneModal(false)} />
+            <NewTicketModal 
+                show={showNewTicketModal} 
+                onHide={() => setShowNewTicketModal(false)} 
+                formData={formData} 
+                handleFormChange={handleFormChange} 
+                handleFormSubmit={handleFormSubmit}
+                submitting={submitting}
+            />
 
             <style>{`
-                .hover-shadow:hover {
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-                    transform: translateY(-2px);
-                    transition: all 0.3s ease;
+                .table th {
+                    font-weight: 600;
+                    font-size: 0.9rem;
+                    white-space: nowrap;
+                }
+                .table td {
+                    font-size: 0.95rem;
+                }
+                .card {
+                    border-radius: 0.75rem;
                 }
             `}</style>
         </Container>

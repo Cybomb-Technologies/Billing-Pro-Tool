@@ -70,6 +70,61 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
+// Bulk Import Products
+router.post('/bulk', auth, async (req, res) => {
+  try {
+    const products = req.body;
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ message: 'Invalid payload: Expected an array of products.' });
+    }
+
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    // Process each product
+    const bulkOps = products.map(productData => {
+       // Defaults and conversions
+       const p = {
+           ...productData,
+           taxRate: productData.taxRate ? parseFloat(productData.taxRate) : 18,
+           stock: parseInt(productData.stock) || 0,
+           lowStockThreshold: parseInt(productData.lowStockThreshold) || 10,
+           price: parseFloat(productData.price) || 0,
+           // Handling optional fields
+           costPrice: productData.costPrice ? parseFloat(productData.costPrice) : undefined
+       };
+       
+       return {
+           updateOne: {
+               filter: { sku: p.sku }, // Match by SKU
+               update: { $set: p },   // Update if exists (or insert if upsert=true)
+               upsert: true
+           }
+       };
+    });
+
+    if (bulkOps.length > 0) {
+        const result = await Product.bulkWrite(bulkOps);
+        results.success = result.upsertedCount + result.modifiedCount; // Approximate success count
+        // For simplicity in bulkWrite, we assume success unless thrown. 
+        // Logic for exact 'inserted' vs 'updated' is in result object.
+        console.log('Bulk write result:', result);
+    }
+
+    res.json({ 
+        message: 'Bulk import processed', 
+        details: results 
+    });
+
+  } catch (error) {
+    console.error('Error during bulk import:', error);
+    res.status(500).json({ message: 'Error processing bulk import: ' + error.message });
+  }
+});
+
 // Update product (Handles stock/threshold updates via main edit form)
 router.put('/:id', auth, async (req, res) => {
   try {

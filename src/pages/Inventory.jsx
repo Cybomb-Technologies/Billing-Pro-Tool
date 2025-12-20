@@ -275,22 +275,22 @@ const Inventory = () => {
         </Card.Header>
         <Card.Body className="p-0 flex-grow-1 d-flex flex-column">
           <div className="table-responsive flex-grow-1">
-            <Table hover className="mb-0">
+            <Table hover className="mb-0 align-middle">
             <thead className="bg-light">
               <tr>
-                <th>Product</th>
-                <th>SKU</th>
-                <th>Category</th>
-                <th>Price</th>
-                <th>Stock Level</th>
-                <th>Status</th>
-                <th style={{ width: '150px' }}>Actions</th>
+                <th className="ps-4 py-3">Product</th>
+                <th className="py-3">SKU</th>
+                <th className="py-3">Category</th>
+                <th className="py-3">Price</th>
+                <th className="py-3">Stock Level</th>
+                <th className="py-3">Status</th>
+                <th style={{ width: '' }} className="text-center py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredProducts.map(product => (
                 <tr key={product._id}>
-                  <td>
+                  <td className="ps-4 py-3">
                     <div className="d-flex align-items-center">
                       <div className="bg-light rounded-circle d-flex align-items-center justify-content-center me-3" style={{ width: '40px', height: '40px' }}>
                         <Package size={18} className="text-muted" />
@@ -301,14 +301,14 @@ const Inventory = () => {
                       </div>
                     </div>
                   </td>
-                  <td>
+                  <td className="py-3">
                     <Badge bg="outline-secondary" className="border border-secondary text-dark">
                       {product.sku || 'N/A'}
                     </Badge>
                   </td>
-                  <td>{product.category || 'N/A'}</td>
-                  <td className="fw-semibold">{formatCurrency(product.price)}</td>
-                  <td>
+                  <td className="py-3">{product.category || 'N/A'}</td>
+                  <td className="fw-semibold py-3">{formatCurrency(product.price)}</td>
+                  <td className="py-3">
                     <div className="d-flex align-items-center">
                       <div className="flex-grow-1 me-3">
                         <ProgressBar 
@@ -320,28 +320,22 @@ const Inventory = () => {
                       <small className="fw-semibold">{product.stock} units</small>
                     </div>
                   </td>
-                  <td>
+                  <td className="py-3">
                     <Badge bg={getStockVariant(product.stock, product.lowStockThreshold)} className="rounded-pill">
                       {getStockStatusLabel(product.stock, product.lowStockThreshold)}
                     </Badge>
                   </td>
-                  <td>
-                    <div className="d-flex gap-2">
+                  <td className="py-3">
+                  <div className="d-flex gap-2 justify-content-end">
                       <Button 
-                        variant="outline-success" 
+                        variant="outline-primary" 
                         size="sm" 
-                        title="Restock"
+                        className="d-flex align-items-center"
+                        title="Restock Product"
                         onClick={() => openRestockModal(product)}
                       >
-                        <Zap size={14} />
-                      </Button>
-                      <Button 
-                        variant="outline-secondary" 
-                        size="sm"
-                        title="Edit Product Details"
-                        onClick={() => showAlert('Use the main Products page to edit full product details.', 'info')}
-                      >
-                        <Edit size={14} />
+                        <Zap size={14} className="me-1" />
+                        Restock
                       </Button>
                     </div>
                   </td>

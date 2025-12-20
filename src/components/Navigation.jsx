@@ -19,6 +19,7 @@ import {
   HelpCircle,
   ClipboardList // Used for Staff Logs icon
 } from "lucide-react";
+import logo from '../assets/logo.png';
 
 const Navigation = ({ children }) => {
   const { user, logout } = useAuth();
@@ -39,8 +40,8 @@ const Navigation = ({ children }) => {
     { path: "/billing", label: "Billing", icon: FileText, roles: ['admin', 'staff'] },
     { path: "/invoices", label: "Invoices", icon: FileText, roles: ['admin', 'staff'] },
     { path: "/products", label: "Products", icon: Package, roles: ['admin', 'staff'] },
-    { path: "/inventory", label: "Inventory", icon: Archive, roles: ['admin', 'staff'] },
-    { path: "/history", label: "History", icon: Clock, roles: ['admin', 'staff'] },
+    { path: "/inventory", label: "Inventory", icon: Archive, roles: ['admin'] },
+    { path: "/history", label: "History", icon: Clock, roles: ['admin'] },
     
     // Role-specific items
     { path: "/reports", label: "Reports", icon: BarChart3, roles: ['admin'] },
@@ -78,14 +79,13 @@ const Navigation = ({ children }) => {
           <div className="p-4" style={{borderBottom: "1px solid rgba(255,255,255,0.05)"}}>
             <div className="d-flex align-items-center">
               <div
-                className="rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm"
+                className="d-flex align-items-center justify-content-center me-3"
                 style={{ 
                   width: "40px", 
                   height: "40px",
-                  background: "linear-gradient(135deg, var(--primary-color), var(--secondary-color))" 
                 }}
               >
-                <Building size={20} className="text-white" />
+                <img src={logo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
               <div>
                 <h5 className="mb-0 fw-bold" style={{color: "var(--text-on-dark)"}}>Billing Pro</h5>

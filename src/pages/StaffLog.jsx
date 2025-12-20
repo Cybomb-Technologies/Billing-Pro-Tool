@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Table, Row, Col, Button, Form, Modal, Badge, Spinner, Alert } from 'react-bootstrap';
-import { Plus, Clock, List, CheckCircle, User, AlertTriangle } from 'lucide-react';
+import { Card, Table, Row, Col, Button, Form, Modal, Badge, Spinner, Alert, Container } from 'react-bootstrap';
+import { Plus, Clock, List, CheckCircle, User, AlertTriangle, Eye } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext'; // Corrected path assumption
 import { API_BASE_URL } from '../config';
@@ -18,6 +18,44 @@ const taskCategories = [
     'Report Generation', 'Data Entry', 'Other'
 ];
 
+// Helper function to render status badges
+const getStatusBadge = (status) => {
+    switch (status) {
+        case 'Completed': return <Badge bg="success"><CheckCircle size={14} className="me-1" />Completed</Badge>;
+        case 'In Progress': return <Badge bg="primary"><Clock size={14} className="me-1" />In Progress</Badge>;
+        case 'Pending': return <Badge bg="warning"><AlertTriangle size={14} className="me-1" />Pending</Badge>;
+        default: return <Badge bg="secondary">{status}</Badge>;
+    }
+};
+
+// View Detail Modal Component
+const ViewLogModal = ({ show, onHide, log }) => {
+    if (!log) return null;
+    return (
+        <Modal show={show} onHide={onHide} centered>
+            <Modal.Header closeButton>
+                <Modal.Title className="h5 fw-bold">Task Details</Modal.Title>
+            </Modal.Header>
+            <Modal.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h5 className="mb-0 fw-bold">{log.category}</h5>
+                    {getStatusBadge(log.status)}
+                </div>
+                <div className="text-muted small mb-3">
+                    {new Date(log.date).toLocaleDateString()} at {new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <div className="p-3 bg-light rounded border">
+                    <label className="text-muted small text-uppercase fw-bold mb-2">Description</label>
+                    <div className="text-dark">{log.details || 'No details provided.'}</div>
+                </div>
+            </Modal.Body>
+            <Modal.Footer>
+                <Button variant="secondary" onClick={onHide}>Close</Button>
+            </Modal.Footer>
+        </Modal>
+    );
+};
+
 const StaffLog = () => {
     // Access authenticated user info
     const { user } = useAuth();
@@ -28,6 +66,8 @@ const StaffLog = () => {
     const [logs, setLogs] = useState([]);
     const [newLog, setNewLog] = useState(initialLogState);
     const [showModal, setShowModal] = useState(false);
+    const [showViewModal, setShowViewModal] = useState(false);
+    const [selectedLog, setSelectedLog] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [alert, setAlert] = useState({ show: false, message: '', type: '' });
@@ -107,41 +147,29 @@ const StaffLog = () => {
         }
     };
     
-    // Helper function to render status badges
-    const getStatusBadge = (status) => {
-        switch (status) {
-            case 'Completed': return <Badge bg="success"><CheckCircle size={14} className="me-1" />Completed</Badge>;
-            case 'In Progress': return <Badge bg="primary"><Clock size={14} className="me-1" />In Progress</Badge>;
-            case 'Pending': return <Badge bg="warning"><AlertTriangle size={14} className="me-1" />Pending</Badge>;
-            default: return <Badge bg="secondary">{status}</Badge>;
-        }
-    };
-
     return (
-        <div className="p-4">
+        <Container fluid className="px-4 py-3">
             {alert.show && (
-                <Alert variant={alert.type} className="position-fixed top-0 end-0 m-3" style={{ zIndex: 1050 }} onClose={() => setAlert({ show: false, message: '', type: '' })} dismissible>
+                <Alert variant={alert.type} className="position-fixed top-0 end-0 m-3 shadow" style={{ zIndex: 1050 }} onClose={() => setAlert({ show: false, message: '', type: '' })} dismissible>
                     {alert.message}
                 </Alert>
             )}
 
-            <Row className="mb-4 align-items-center">
-                <Col>
-                    <h2 className="mb-1">Staff Activity Log</h2>
+            <div className="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 className="text-dark fw-bold mb-1">Staff Activity Log</h2>
                     <p className="text-muted mb-0">Record your day-to-day tasks and accomplishments.</p>
-                </Col>
-                <Col xs="auto">
-                    <Button variant="success" className="d-flex align-items-center" onClick={() => setShowModal(true)} disabled={!isAuthenticated}>
-                        <Plus size={18} className="me-2" />
-                        Log New Task
-                    </Button>
-                </Col>
-            </Row>
+                </div>
+                <Button variant="success" className="d-flex align-items-center shadow-sm fw-bold" onClick={() => setShowModal(true)} disabled={!isAuthenticated}>
+                    <Plus size={18} className="me-2" />
+                    Log New Task
+                </Button>
+            </div>
             
             <Card className="shadow-sm border-0">
-                <Card.Header className="bg-white py-3 d-flex justify-content-between align-items-center">
-                    <h5 className="mb-0">Your Recent Activities</h5>
-                    <Badge bg="primary"><User size={14} className="me-2" />Logged in as: {userName}</Badge>
+                <Card.Header className="bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
+                    <h5 className="mb-0 fw-bold">Your Recent Activities</h5>
+                    <Badge bg="primary" className="py-2 px-3"><User size={14} className="me-2" />Logged in as: {userName}</Badge>
                 </Card.Header>
                 <Card.Body className="p-0">
                     {error && <Alert variant="danger" className="m-3">{error}</Alert>}
@@ -152,32 +180,56 @@ const StaffLog = () => {
                         </div>
                     ) : logs.length === 0 ? (
                         <div className="text-center py-5 text-muted">
-                            <List size={32} className="mb-3" />
+                            <List size={48} className="mb-3 opacity-25" />
                             <p>{isAuthenticated ? 'No tasks found for your user account.' : 'Please log in to view your activity log.'}</p>
                         </div>
                     ) : (
-                        <Table responsive hover className="mb-0">
-                            <thead className="bg-light">
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Category</th>
-                                    <th>Task Details</th>
-                                    <th>Status</th>
-                                    <th>Logged At</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {logs.map(log => (
-                                    <tr key={log._id}>
-                                        <td className="fw-semibold">{new Date(log.date).toLocaleDateString()}</td>
-                                        <td><Badge bg="info">{log.category}</Badge></td>
-                                        <td>{log.details}</td>
-                                        <td>{getStatusBadge(log.status)}</td>
-                                        <td className="text-muted small">{new Date(log.createdAt).toLocaleTimeString()}</td>
+                        <div className="table-responsive">
+                            <Table hover className="mb-0 align-middle">
+                                <thead className="bg-light">
+                                    <tr>
+                                        <th className="py-3 ps-4">Date</th>
+                                        <th className="py-3">Category</th>
+                                        <th className="py-3">Task Details</th>
+                                        <th className="py-3 text-center">Status</th>
+                                        <th className="py-3">Logged At</th>
+                                        <th className="py-3 pe-4 text-end">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </Table>
+                                </thead>
+                                <tbody>
+                                    {logs.map((log, index) => (
+                                        <tr key={log._id || index}>
+                                            <td className="ps-4 fw-semibold text-dark">{new Date(log.date).toLocaleDateString()}</td>
+                                            <td>
+                                                <Badge bg="info" className="text-dark bg-opacity-10 text-uppercase border border-info border-opacity-25" style={{ fontSize: '0.75rem' }}>
+                                                    {log.category}
+                                                </Badge>
+                                            </td>
+                                            <td className="text-muted" style={{ maxWidth: '350px' }}>
+                                                <div className="text-truncate" title={log.details}>
+                                                    {log.details || 'No details provided'}
+                                                </div>
+                                            </td>
+                                            <td className="text-center">{getStatusBadge(log.status)}</td>
+                                            <td className="text-muted small">
+                                                {new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </td>
+                                            <td className="text-end pe-4">
+                                                <Button 
+                                                    variant="outline-primary" 
+                                                    size="sm" 
+                                                    className="shadow-sm"
+                                                    onClick={() => { setSelectedLog(log); setShowViewModal(true); }}
+                                                    title="View Full Details"
+                                                >
+                                                    <Eye size={16} />
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </Table>
+                        </div>
                     )}
                 </Card.Body>
             </Card>
@@ -185,14 +237,17 @@ const StaffLog = () => {
             {/* Task Logging Modal */}
             <Modal show={showModal} onHide={() => setShowModal(false)} centered>
                 <Modal.Header closeButton>
-                    <Modal.Title className="h5">Log Daily Task</Modal.Title>
+                    <Modal.Title className="h5 fw-bold">Log Daily Task</Modal.Title>
                 </Modal.Header>
                 <Form onSubmit={handleCreateLog}>
-                    <Modal.Body>
-                        <Alert variant="info" className="p-2 small">Logging task for user: **{userName}**</Alert>
+                    <Modal.Body className="p-4">
+                        <Alert variant="info" className="p-2 small mb-3 d-flex align-items-center">
+                            <User size={16} className="me-2" />
+                            Logging task for user: <strong className="ms-1">{userName}</strong>
+                        </Alert>
                         
                         <Form.Group className="mb-3">
-                            <Form.Label>Date of Activity *</Form.Label>
+                            <Form.Label className="fw-semibold small text-uppercase text-muted">Date of Activity *</Form.Label>
                             <Form.Control 
                                 type="date"
                                 value={newLog.date}
@@ -202,7 +257,7 @@ const StaffLog = () => {
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                            <Form.Label>Task Category *</Form.Label>
+                            <Form.Label className="fw-semibold small text-uppercase text-muted">Task Category *</Form.Label>
                             <Form.Select
                                 value={newLog.category}
                                 onChange={(e) => setNewLog({...newLog, category: e.target.value})}
@@ -213,7 +268,7 @@ const StaffLog = () => {
                         </Form.Group>
                         
                         <Form.Group className="mb-3">
-                            <Form.Label>Task Details (What was done?) *</Form.Label>
+                            <Form.Label className="fw-semibold small text-uppercase text-muted">Task Details (What was done?) *</Form.Label>
                             <Form.Control
                                 as="textarea"
                                 rows={3}
@@ -225,7 +280,7 @@ const StaffLog = () => {
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                            <Form.Label>Status</Form.Label>
+                            <Form.Label className="fw-semibold small text-uppercase text-muted">Status</Form.Label>
                             <Form.Select
                                 value={newLog.status}
                                 onChange={(e) => setNewLog({...newLog, status: e.target.value})}
@@ -240,14 +295,20 @@ const StaffLog = () => {
                     </Modal.Body>
                     <Modal.Footer>
                         <Button variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
-                        <Button variant="success" type="submit">
+                        <Button variant="success" type="submit" className="fw-bold">
                             <CheckCircle size={18} className="me-1" />
                             Submit Log
                         </Button>
                     </Modal.Footer>
                 </Form>
             </Modal>
-        </div>
+            
+            <ViewLogModal 
+                show={showViewModal} 
+                onHide={() => setShowViewModal(false)} 
+                log={selectedLog} 
+            />
+        </Container>
     );
 };
 
