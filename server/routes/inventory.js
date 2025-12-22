@@ -1,5 +1,5 @@
 import express from 'express';
-import Inventory from '../models/Inventory.js';
+
 import { auth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -7,6 +7,7 @@ const router = express.Router();
 // Get all inventory items
 router.get('/', auth, async (req, res) => {
   try {
+    const { Inventory } = req.tenantModels;
     const inventory = await Inventory.find().populate('product');
     res.json(inventory);
   } catch (error) {
@@ -17,6 +18,7 @@ router.get('/', auth, async (req, res) => {
 // Update inventory
 router.put('/:id', auth, async (req, res) => {
   try {
+    const { Inventory } = req.tenantModels;
     const inventory = await Inventory.findByIdAndUpdate(
       req.params.id,
       req.body,

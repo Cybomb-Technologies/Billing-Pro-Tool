@@ -64,8 +64,8 @@ const Navigation = ({ children }) => {
 
   return (
     <div className="d-flex">
-      {/* Sidebar is only rendered if user is logged in */}
-      {user && (
+      {/* Sidebar is only rendered if user is logged in AND not on Super Admin or Client Dashboard page */}
+      {user && location.pathname !== '/super-admin' && location.pathname !== '/client-dashboard' && (
         <div
           className="vh-100 position-fixed d-flex flex-column"
           style={{ 
@@ -165,7 +165,7 @@ const Navigation = ({ children }) => {
       {/* Main content */}
       <div
         className="flex-grow-1"
-        style={{ marginLeft: user ? "var(--sidebar-width)" : "0" }}
+        style={{ marginLeft: (user && location.pathname !== '/super-admin' && location.pathname !== '/client-dashboard') ? "var(--sidebar-width)" : "0" }}
       >
         <div className="min-vh-100 d-flex flex-column" style={{backgroundColor: "var(--bg-body)"}}>{children}</div>
       </div>

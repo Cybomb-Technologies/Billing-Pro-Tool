@@ -1,7 +1,8 @@
 // routes/settings.js
 import express from 'express';
-import Settings from '../models/Settings.js'; 
+ 
 import { auth, authorize } from '../middleware/auth.js'; 
+import { logActivity } from '../services/activityLogger.js';
 
 const router = express.Router();
 
@@ -13,6 +14,7 @@ router.use(authorize('admin'));
 // Fetch the single global settings document. USES UPSERT TO ENSURE IT EXISTS.
 router.get('/', async (req, res) => {
     try {
+        const { Settings } = req.tenantModels;
         // Find the global settings document or create it if it doesn't exist
         const settings = await Settings.findOneAndUpdate(
             { settingsId: 'global_settings' },
@@ -33,6 +35,7 @@ router.get('/', async (req, res) => {
 // PATCH /api/settings/:category
 // Update a specific category of settings (company, preferences, or payment)
 router.patch('/:category', async (req, res) => {
+    const { Settings } = req.tenantModels;
     const { category } = req.params;
     const updates = req.body;
 
@@ -61,6 +64,17 @@ router.patch('/:category', async (req, res) => {
         if (!settings) {
             return res.status(500).json({ message: 'Failed to create or update global settings document.' });
         }
+
+        // Log Activity
+        logActivity({
+            req,
+            action: 'UPDATE',
+            module: 'SETTINGS', // Or OTHER mapped to SETTINGS? Enum in ActivityLog allows 'OTHER'. 
+            // We should ideally add SETTINGS to Enum, but OTHER is fine or extend Enum if possible.
+            // Using 'OTHER' but description clarifies.
+            description: `Updated ${category} settings`,
+            metadata: { category, updates: Object.keys(updates) }
+        });
 
         // Return only the updated category data
         res.json({ message: `${category} settings updated successfully.`, data: settings[category] });

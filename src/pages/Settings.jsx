@@ -376,10 +376,7 @@ const Settings = () => {
                             <Form.Control type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
                           </div>
                           <div className="col-md-2">
-                            <Form.Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-                              <option value="staff">Staff</option>
-                              <option value="admin">Admin</option>
-                            </Form.Select>
+                             <Form.Control type="text" value="Staff" disabled />
                           </div>
                           <div className="col-md-2">
                             <Button type="submit" variant="success" className="w-100">

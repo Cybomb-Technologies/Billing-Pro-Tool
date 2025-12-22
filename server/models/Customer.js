@@ -69,4 +69,5 @@ customerSchema.path('gstNumber').validate(function(gstNumber) {
   return gstRegex.test(gstNumber);
 }, 'Invalid GST number format');
 
+export const CustomerSchema = customerSchema;
 export default mongoose.model('Customer', customerSchema);

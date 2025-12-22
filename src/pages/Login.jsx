@@ -8,14 +8,16 @@ import {
 // If this still fails, the path needs to be adjusted based on your exact file structure.
 import { useAuth } from '../context/AuthContext'; 
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, LogIn } from 'lucide-react'; 
+import { Mail, Lock, LogIn, GitBranch, ShieldCheck } from 'lucide-react'; 
 
 const Login = () => {
-  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [formData, setFormData] = useState({ email: '', password: '', tenantId: '' });
+  const [loginType, setLoginType] = useState('user'); // 'user' (Tenant/Staff) or 'client-admin' (Org Owner)
+  const [showTenantId, setShowTenantId] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { login } = useAuth();
+  const { login, loginClientAdmin } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -24,13 +26,23 @@ const Login = () => {
     setError('');
 
     try {
-      const result = await login(formData.email, formData.password);
+      let result;
       
-      if (result.success) {
-        navigate('/dashboard');
+      if (loginType === 'client-admin') {
+          result = await loginClientAdmin(formData.email, formData.password);
+          if (result.success) {
+             navigate('/client-dashboard');
+             return;
+          }
       } else {
-        setError(result.message || 'Login failed. Please check your credentials.');
+          result = await login(formData.email, formData.password, formData.tenantId);
+          if (result.success) {
+            navigate('/dashboard');
+            return;
+          }
       }
+
+      setError(result.message || 'Login failed. Please check your credentials.');
     } catch (err) {
       setError('An unexpected error occurred during login.');
     } finally {
@@ -50,107 +62,156 @@ const Login = () => {
       navigate('/home');
   };
 
+  // --- UI RENDER ---
   return (
-    // Outer container for full-screen effect
-    <div className="d-flex align-items-center justify-content-center" 
-         style={{ minHeight: '100vh', background: 'linear-gradient(to right, #1a237e, #4a148c)' }}>
-      
-      <Container>
-        <Row className="justify-content-center">
-          <Col xs={12} md={10} lg={8}>
-            <Card className="shadow-lg border-0 rounded-3">
-              <Row className="g-0">
-                
-                {/* Visual/Branding Section (Hidden on small screens) */}
-                <Col md={6} className="d-none d-md-flex flex-column align-items-center justify-content-center p-5 text-white rounded-start-3" 
-                     style={{ background: 'linear-gradient(to bottom, #4a148c, #1a237e)' }}>
-                  <div className="text-center">
-                    <h1 className="fw-bold mb-3">Billing Pro</h1>
-                    <p className="lead">Seamless invoicing for your business growth.</p>
-                    <LogIn size={64} className="mt-4" />
-                    
-                  </div>
-                </Col>
+    <div style={{ 
+        minHeight: '100vh', 
+        background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        padding: '20px'
+    }}>
+      <Container style={{ maxWidth: '900px' }}>
+        <Card className="border-0 shadow-lg overflow-hidden" style={{ borderRadius: '20px' }}>
+          <Row className="g-0">
+            
+            {/* Left Side - Brand / Visual */}
+            <Col md={6} className="text-white d-none d-md-flex flex-column align-items-center justify-content-center p-5"
+                 style={{ 
+                    background: 'url("https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80") center/cover no-repeat',
+                    position: 'relative'
+                 }}>
+              {/* Overlay */}
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(30, 60, 114, 0.85)' }}></div>
+              
+              <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+                <div className="mb-4 bg-white text-primary rounded-circle d-flex align-items-center justify-content-center mx-auto" style={{ width: '80px', height: '80px', boxShadow: '0 8px 30px rgba(0,0,0,0.2)' }}>
+                    <ShieldCheck size={40} />
+                </div>
+                <h2 className="fw-bold mb-2">Billing Professional</h2>
+                <p className="opacity-75">Empowering your business with seamless invoicing and management.</p>
+              </div>
+            </Col>
 
-                {/* Login Form Section */}
-                <Col md={6} className="p-4 p-md-5">
-                  <div className="text-center mb-4">
-                    <h2 className="fw-bold text-primary">Sign In</h2>
-                    <p className="text-muted">Access your Billing Dashboard</p>
-                  </div>
-                  
-                  {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
-                  
-                  <Form onSubmit={handleSubmit}>
-                    
-                    {/* Email Field with Icon */}
-                    <Form.Group className="mb-3">
-                      <Form.Label className="fw-semibold">Email Address</Form.Label>
-                      <InputGroup>
-                        <InputGroup.Text className="rounded-start-2"><Mail size={16} /></InputGroup.Text>
+            {/* Right Side - Login Form */}
+            <Col md={6} className="bg-white p-5">
+              <div className="text-center mb-4">
+                <h4 className="fw-bold text-dark">{loginType === 'client-admin' ? 'Organization Access' : 'Staff Portal'}</h4>
+                <p className="text-muted small">
+                    {loginType === 'client-admin' ? 'Login to manage your branches and subscription' : 'Login to your assigned branch dashboard'}
+                </p>
+              </div>
+
+              {error && <Alert variant="danger" className="small border-0 shadow-sm" dismissible onClose={() => setError('')}>{error}</Alert>}
+
+              <Form onSubmit={handleSubmit}>
+                
+                <Form.Group className="mb-3">
+                    <Form.Label className="small fw-bold text-uppercase text-secondary">Email Address</Form.Label>
+                    <InputGroup>
+                        <InputGroup.Text className="bg-light border-end-0"><Mail size={16} className="text-muted" /></InputGroup.Text>
                         <Form.Control
-                          type="email"
-                          name="email"
-                          placeholder="your.email@example.com"
-                          value={formData.email}
-                          onChange={handleChange}
-                          required
-                          disabled={loading}
-                          className="rounded-end-2"
+                            type="email"
+                            name="email"
+                            placeholder="name@company.com"
+                            value={formData.email}
+                            onChange={handleChange}
+                            required
+                            disabled={loading}
+                            className="bg-light border-start-0 ps-0"
                         />
-                      </InputGroup>
-                    </Form.Group>
-                    
-                    {/* Password Field with Icon */}
-                    <Form.Group className="mb-4">
-                      <Form.Label className="fw-semibold">Password</Form.Label>
-                      <InputGroup>
-                        <InputGroup.Text className="rounded-start-2"><Lock size={16} /></InputGroup.Text>
+                    </InputGroup>
+                </Form.Group>
+
+                <Form.Group className="mb-3">
+                    <Form.Label className="small fw-bold text-uppercase text-secondary">Password</Form.Label>
+                    <InputGroup>
+                        <InputGroup.Text className="bg-light border-end-0"><Lock size={16} className="text-muted" /></InputGroup.Text>
                         <Form.Control
-                          type="password"
-                          name="password"
-                          placeholder="••••••••"
-                          value={formData.password}
-                          onChange={handleChange}
-                          required
-                          disabled={loading}
-                          className="rounded-end-2"
+                            type="password"
+                            name="password"
+                            placeholder="••••••••"
+                            value={formData.password}
+                            onChange={handleChange}
+                            required
+                            disabled={loading}
+                            className="bg-light border-start-0 ps-0"
                         />
-                      </InputGroup>
-                    </Form.Group>
-                    
-                    {/* Dynamic Button */}
+                    </InputGroup>
+                </Form.Group>
+
+                {/* Branch ID (Staff Only) - Moved Below Password */}
+                {loginType === 'user' && (
+                    <div className="mb-4">
+                        <Form.Check 
+                            type="checkbox"
+                            id="show-branch-id"
+                            label="Login to a specific Branch?"
+                            className="small text-muted mb-2"
+                            checked={showTenantId}
+                            onChange={(e) => setShowTenantId(e.target.checked)}
+                        />
+                        
+                        {showTenantId && (
+                            <Form.Group className="mt-2 animation-fade-in">
+                                <Form.Label className="small fw-bold text-uppercase text-secondary">Branch / Store ID</Form.Label>
+                                <InputGroup>
+                                    <InputGroup.Text className="bg-light border-end-0"><GitBranch size={16} className="text-muted" /></InputGroup.Text>
+                                    <Form.Control
+                                        type="text"
+                                        name="tenantId"
+                                        placeholder="Enter Branch Slug"
+                                        value={formData.tenantId}
+                                        onChange={handleChange}
+                                        disabled={loading}
+                                        className="bg-light border-start-0 ps-0"
+                                    />
+                                </InputGroup>
+                            </Form.Group>
+                        )}
+                    </div>
+                )}
+
+                <Button 
+                    variant={loginType === 'client-admin' ? 'dark' : 'primary'} 
+                    type="submit" 
+                    className="w-100 py-2 fw-semibold shadow-sm mb-4"
+                    disabled={loading}
+                    style={{ background: loginType === 'client-admin' ? '#2c3e50' : '#4a90e2', border: 'none' }}
+                >
+                    {loading ? <Spinner size="sm" animation="border" /> : (loginType === 'client-admin' ? 'Login as Multi-Branch Owner' : 'Login to Dashboard')}
+                </Button>
+
+                {/* Toggle Login Type */}
+                <div className="text-center pt-3 border-top">
+                    <p className="text-muted small mb-2">
+                        {loginType === 'user' ? 'Are you a Multi-Branch Owner?' : 'Are you a Staff Member?'}
+                    </p>
                     <Button 
-                      variant="primary" 
-                      type="submit" 
-                      className="w-100 fw-bold py-2 rounded-2" 
-                      disabled={loading}
+                        variant="outline-secondary" 
+                        size="sm" 
+                        className="rounded-pill px-4"
+                        onClick={() => { 
+                            setLoginType(loginType === 'user' ? 'client-admin' : 'user'); 
+                            setError(''); 
+                        }}
                     >
-                      {loading ? (
-                        <>
-                          <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" className="me-2" />
-                          Authenticating...
-                        </>
-                      ) : (
-                        'Login'
-                      )}
+                        {loginType === 'user' ? 'Switch to Owner Login' : 'Switch to Staff Login'}
                     </Button>
-                  </Form>
-                  
-                  {/* Footer Info */}
-                  {/* <div className="text-center mt-4 pt-3 border-top">
-                    <small className="text-muted">
-                      Demo Credentials: <span className="fw-semibold">admin@billing.com</span> / <span className="fw-semibold">password</span>
-                    </small>
-                  </div> */}
-                  <div className="text-center mt-3 d-md-none">
-                      
-                  </div>
-                </Col>
-              </Row>
-            </Card>
-          </Col>
-        </Row>
+                </div>
+
+              </Form>
+            </Col>
+          </Row>
+        </Card>
+        
+        {/* Footer Links */}
+        <div className="text-center mt-4 text-white-50 small">
+            <span className="cursor-pointer hover-text-white" onClick={handleGoHome}>Home</span> • 
+            <span className="mx-2 cursor-pointer hover-text-white">Privacy Policy</span> • 
+            <span className="cursor-pointer hover-text-white">Help Center</span>
+        </div>
       </Container>
     </div>
   );

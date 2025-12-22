@@ -37,4 +37,5 @@ const staffLogSchema = new mongoose.Schema({
     }
 });
 
+export const StaffLogSchema = staffLogSchema;
 export default mongoose.model('StaffLog', staffLogSchema);

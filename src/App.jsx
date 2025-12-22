@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'; 
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'; 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import './App.css';
@@ -23,6 +23,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Operations from './pages/Operations';
 import StaffLog from './pages/StaffLog';
 import SupportData from './pages/Support-data';
+import SuperAdmin from './pages/SuperAdmin';
+import ClientDashboard from './pages/ClientDashboard';
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
@@ -77,6 +79,13 @@ function App() {
                 <Route path="/settings" element={<RoleBasedRoute allowedRoles={['admin']}><Settings /></RoleBasedRoute>} />
                 <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
                 <Route path="/Operations" element={<RoleBasedRoute allowedRoles={['staff','admin']}><Operations /></RoleBasedRoute>} />
+                
+                {/* Super Admin Route */}
+                <Route path="/super-admin" element={<SuperAdmin />} />
+
+                {/* Client Admin Route */}
+                <Route path="/client-dashboard" element={<ProtectedRoute><ClientDashboard /></ProtectedRoute>} />
+
                 {/* Default redirect */}
                 <Route path="/" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
                 

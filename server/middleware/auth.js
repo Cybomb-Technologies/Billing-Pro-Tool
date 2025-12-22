@@ -10,10 +10,14 @@ export const auth = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    req.user = await User.findById(decoded.userId || decoded.id).select('-password');
+    
+    // Maxwell: Use tenant-specific User model if available, otherwise fallback to imported User (for master DB ops if any)
+    const { User: TenantUser } = req.tenantModels || { User }; 
+    
+    req.user = await TenantUser.findById(decoded.userId || decoded.id).select('-password');
     
     if (!req.user) {
-        return res.status(401).json({ message: 'User not found' });
+        return res.status(401).json({ message: 'User not found in this tenant context' });
     }
     
     next();

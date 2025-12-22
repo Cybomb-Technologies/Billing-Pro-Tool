@@ -1,5 +1,5 @@
 import express from 'express';
-import User from '../models/User.js';
+
 import { auth, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -7,6 +7,7 @@ const router = express.Router();
 // Get all users (admin only)
 router.get('/', auth, authorize('admin'), async (req, res) => {
   try {
+    const { User } = req.tenantModels;
     const users = await User.find().select('-password');
     res.json(users);
   } catch (error) {
@@ -17,7 +18,9 @@ router.get('/', auth, authorize('admin'), async (req, res) => {
 // Create user (admin only)
 router.post('/', auth, authorize('admin'), async (req, res) => {
   try {
-    const user = new User(req.body);
+    const { User } = req.tenantModels;
+    // Force role to be 'staff' to prevent creating other admins
+    const user = new User({ ...req.body, role: 'staff' });
     await user.save();
     res.status(201).json(user);
   } catch (error) {
@@ -27,6 +30,7 @@ router.post('/', auth, authorize('admin'), async (req, res) => {
 
 router.delete('/:id', auth, authorize('admin'), async (req, res) => {
   try {
+    const { User } = req.tenantModels;
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: 'User deleted successfully' });
   } catch (error) {

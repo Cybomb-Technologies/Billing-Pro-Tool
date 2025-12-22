@@ -1,12 +1,12 @@
 import express from 'express';
-import SupportTicket from '../models/SupportTicket.js';
+
 import { auth } from '../middleware/auth.js';
 import { sendNewTicketEmail, sendStaffConfirmationEmail, emitNewTicketNotification } from '../utils/notifier.js';
 
 const router = express.Router();
 
 // Helper function to generate a ticket ID
-const generateTicketId = async () => {
+const generateTicketId = async (SupportTicket) => {
     try {
         const count = await SupportTicket.countDocuments();
         return `TKT-${String(count + 1).padStart(5, '0')}`;
@@ -19,9 +19,10 @@ const generateTicketId = async () => {
 // POST /api/support/tickets - Submit a new support ticket (Staff & Admin)
 router.post('/tickets', auth, async (req, res) => {
     try {
+        const { SupportTicket } = req.tenantModels;
         const { name, email, subject, department, message } = req.body;
         
-        const ticketId = await generateTicketId();
+        const ticketId = await generateTicketId(SupportTicket);
 
         const newTicket = new SupportTicket({
             ticketId,
@@ -55,6 +56,7 @@ router.post('/tickets', auth, async (req, res) => {
 // PUT /api/support/tickets/:ticketId/status - Update ticket status (Admin Only)
 router.put('/tickets/:ticketId/status', auth, async (req, res) => {
     try {
+        const { SupportTicket } = req.tenantModels;
         // Enforce admin-only access
         if (req.user.role !== 'admin') {
             return res.status(403).json({ message: 'Access denied. Only administrators can update ticket status.' });
@@ -93,6 +95,7 @@ router.put('/tickets/:ticketId/status', auth, async (req, res) => {
 // GET /api/support/tickets - Fetch tickets (Role-based access)
 router.get('/tickets', auth, async (req, res) => {
     try {
+        const { SupportTicket } = req.tenantModels;
         let filter = {};
         // Staff members can only see their own tickets
         if (req.user.role === 'staff') {

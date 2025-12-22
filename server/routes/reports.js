@@ -1,8 +1,5 @@
 import express from 'express';
-import Invoice from '../models/Invoice.js';
-import Product from '../models/Product.js';
-import Customer from '../models/Customer.js';
-import User from '../models/User.js';
+
 import { auth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -10,6 +7,7 @@ const router = express.Router();
 // Get Dashboard Stats (aggregated)
 router.get('/dashboard-stats', auth, async (req, res) => {
   try {
+    const { Invoice, Product, Customer, User } = req.tenantModels;
     const [
       invoices,
       totalProducts,
@@ -20,7 +18,7 @@ router.get('/dashboard-stats', auth, async (req, res) => {
       Invoice.find({}),
       Product.countDocuments({ isActive: true }),
       Customer.countDocuments({}),
-      Product.find({ isActive: true }, 'stock lowStockThreshold name'), // Added 'name'
+      Product.find({ isActive: true }, 'stock lowStockThreshold name price costPrice'), // Added price and costPrice for value calc
       User.countDocuments({})
     ]);
 
@@ -28,6 +26,8 @@ router.get('/dashboard-stats', auth, async (req, res) => {
     let outstandingAR = 0;
     let overdueCount = 0;
     let pendingCount = 0;
+    let inventoryValue = 0; // New: Inventory Value
+
     const productSalesMap = {};
     const monthlySales = {}; // New: Track monthly sales
 
@@ -101,11 +101,17 @@ router.get('/dashboard-stats', auth, async (req, res) => {
         lowStock: 0 // Placeholder or remove trend for stock
     };
 
-    const lowStockCount = products.filter(p => (p.stock || 0) < (p.lowStockThreshold || 10)).length;
+    // Calculate Inventory Value
+    products.forEach(p => {
+        const val = (p.stock || 0) * (p.costPrice || p.price || 0);
+        inventoryValue += val;
+    });
+
+    const lowStockCount = products.filter(p => (p.stock || 0) < (p.lowStockThreshold || 5)).length;
 
     // Filter and sort low stock products for the dashboard alert
     const lowStockProducts = products
-        .filter(p => (p.stock || 0) < (p.lowStockThreshold || 10))
+        .filter(p => (p.stock || 0) < (p.lowStockThreshold || 5))
         .sort((a, b) => (a.stock || 0) - (b.stock || 0))
         .slice(0, 6); // Limit to top 6 for display
 
@@ -137,6 +143,7 @@ router.get('/dashboard-stats', auth, async (req, res) => {
         totalCustomers,
         totalUsers,
         lowStockCount,
+        inventoryValue, // New field
         lowStockProducts, 
         topSellingProducts,
         monthlySales,
@@ -152,6 +159,7 @@ router.get('/dashboard-stats', auth, async (req, res) => {
 // Get sales report
 router.get('/sales', auth, async (req, res) => {
   try {
+    const { Invoice } = req.tenantModels;
     const { startDate, endDate } = req.query;
     
     let filter = {};
@@ -183,6 +191,7 @@ router.get('/sales', auth, async (req, res) => {
 // Get Payment Distribution (Sales Pie Chart)
 router.get('/payment-distribution', auth, async (req, res) => {
   try {
+    const { Invoice } = req.tenantModels;
     const { period } = req.query; // 'daily', 'weekly', 'monthly', 'yearly'
     const now = new Date();
     let startDate = new Date();
@@ -240,6 +249,7 @@ router.get('/payment-distribution', auth, async (req, res) => {
 // Get Sales Trend for Bar Chart
 router.get('/sales-trend', auth, async (req, res) => {
   try {
+    const { Invoice } = req.tenantModels;
     const { period } = req.query; // 'daily', 'weekly', 'monthly', 'yearly'
     const now = new Date();
     let startDate = new Date();

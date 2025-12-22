@@ -284,8 +284,7 @@ invoiceSchema.pre("validate", async function (next) {
       const datePrefix = `${day}${month}${year}`;
 
       // Find the last invoice created today to determine the next sequence number
-      const lastInvoice = await mongoose
-        .model("Invoice")
+      const lastInvoice = await this.constructor
         .findOne({
           invoiceNumber: { $regex: `^${datePrefix}` },
         })
@@ -309,4 +308,5 @@ invoiceSchema.pre("validate", async function (next) {
   next();
 });
 
+export const InvoiceSchema = invoiceSchema;
 export default mongoose.model("Invoice", invoiceSchema);

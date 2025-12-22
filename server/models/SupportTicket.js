@@ -46,4 +46,5 @@ const supportTicketSchema = new mongoose.Schema({
 
 // The pre-save middleware for auto-generating the ticketId has been removed.
 
+export const SupportTicketSchema = supportTicketSchema;
 export default mongoose.model('SupportTicket', supportTicketSchema);

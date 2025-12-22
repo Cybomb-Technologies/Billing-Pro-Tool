@@ -19,6 +19,7 @@ import staffRoutes from './routes/stafflogs.js';
 import settingsRoutes from './routes/settings.js';
 import supportRoutes from './routes/support.js';
 import uploadRoutes from './routes/upload.js';
+import activityLogRoutes from './routes/activityLogs.js';
 dotenv.config();
 
 const app = express();
@@ -31,11 +32,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+import { tenantResolver } from './middleware/tenantResolver.js';
+app.use(tenantResolver);
+
 // Database connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/billing_app';
 mongoose.connect(MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
+  .then(() => console.log('Connected to Master/Default MongoDB'))
   .catch(err => console.log('MongoDB connection error:', err));
+
 
 // Initialize Socket.IO
 initializeSocket(server);
@@ -52,6 +57,13 @@ app.use('/api/stafflogs', staffRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/logs', activityLogRoutes);
+import superAdminRoutes from './routes/superAdmin.js';
+app.use('/api/super-admin', superAdminRoutes);
+
+import clientAdminRoutes from './routes/clientAdmin.js';
+app.use('/api/client-admin', clientAdminRoutes);
+
 app.use(express.static(path.join(__dirname, 'public'))); 
 // Basic route for testing
 app.get('/api/test', (req, res) => {
