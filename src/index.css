@@ -150,3 +150,12 @@ button:focus-visible,
     color: #747bff;
   }
 }
+
+/* Custom Utilities */
+.bg-purple-soft {
+  background-color: rgba(139, 92, 246, 0.15) !important;
+}
+
+.text-purple {
+  color: #7c3aed !important;
+}

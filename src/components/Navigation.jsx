@@ -17,7 +17,8 @@ import {
   Archive,
   Clock,
   HelpCircle,
-  ClipboardList // Used for Staff Logs icon
+  ClipboardList, // Used for Staff Logs icon
+  Activity // Used for Activity Logs icon
 } from "lucide-react";
 import logo from '../assets/logo.png';
 
@@ -45,6 +46,7 @@ const Navigation = ({ children }) => {
     
     // Role-specific items
     { path: "/reports", label: "Reports", icon: BarChart3, roles: ['admin'] },
+    { path: "/activity-logs", label: "Activity Logs", icon: Activity, roles: ['admin'] },
     { path: "/stafflogs", label: "Staff Logs", icon: ClipboardList, roles: ['staff'] }, // Only for Staff
     
     // Core utility/Admin Items

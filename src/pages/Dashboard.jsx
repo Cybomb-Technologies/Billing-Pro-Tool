@@ -316,51 +316,50 @@ const Dashboard = () => {
                             </Col>
                             <Col lg={4} md={12}>
                                 <Card className="shadow-sm border-0 h-100">
-                                    <Card.Header className="bg-white border-0 py-3 d-flex justify-content-between align-items-center border-bottom px-4">
+                                    <Card.Header className="bg-white border-bottom-0 py-3 d-flex justify-content-between align-items-center px-4 pt-4">
                                         <h6 className="mb-0 fw-bold d-flex align-items-center text-dark">
-                                            <AlertTriangle size={18} className="me-2 text-warning" />
+                                            <div className="bg-warning bg-opacity-10 rounded p-2 me-2">
+                                                <AlertTriangle size={18} className="text-warning" />
+                                            </div>
                                             Low Stock Alerts
                                         </h6>
                                         <Badge bg="danger" pill className="px-3 py-2">{stats.lowStockCount}</Badge>
                                     </Card.Header>
-                                    <Card.Body className="p-0">
-                                        {lowStockItems.length > 0 ? (
-                                            <div className="list-group list-group-flush">
-                                                {lowStockItems.slice(0, 6).map((product, idx) => (
-                                                    <div key={idx} className="list-group-item d-flex justify-content-between align-items-center py-3 border-light px-4">
-                                                        <div className="d-flex align-items-center">
-                                                            <div className="bg-danger bg-opacity-10 rounded p-2 me-3">
-                                                                <Package size={16} className="text-danger" />
+                                    <Card.Body className="px-4 pb-4 pt-2">
+                                        <div style={{ height: '320px' }}>
+                                            {lowStockItems.length > 0 ? (
+                                                <div className="list-group list-group-flush">
+                                                    {lowStockItems.slice(0, 4).map((product, idx) => (
+                                                        <div key={idx} className="list-group-item d-flex justify-content-between align-items-center py-3 border-light px-0">
+                                                            <div className="d-flex align-items-center">
+                                                                <div className="bg-danger bg-opacity-10 rounded p-2 me-3">
+                                                                    <Package size={16} className="text-danger" />
+                                                                </div>
+                                                                <div>
+                                                                    <h6 className="mb-0 text-truncate text-dark fw-medium" 
+                                                                        style={{maxWidth: '140px'}} 
+                                                                        title={product.name}>
+                                                                        {product.name}
+                                                                    </h6>
+                                                                    <small className="text-muted">Threshold: {product.lowStockThreshold || 10}</small>
+                                                                </div>
                                                             </div>
-                                                            <div>
-                                                                <h6 className="mb-0 text-truncate text-dark fw-medium" 
-                                                                    style={{maxWidth: '140px'}} 
-                                                                    title={product.name}>
-                                                                    {product.name}
-                                                                </h6>
-                                                                <small className="text-muted">Threshold: {product.lowStockThreshold || 10}</small>
-                                                            </div>
+                                                            <Badge bg="danger" className="p-2 px-3 badge-pill">
+                                                                {product.stock} left
+                                                            </Badge>
                                                         </div>
-                                                        <Badge bg="danger" className="p-2 px-3 badge-pill">
-                                                            {product.stock} left
-                                                        </Badge>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="h-100 d-flex flex-column align-items-center justify-content-center text-muted">
+                                                    <div className="bg-success bg-opacity-10 rounded-circle p-3 mb-3">
+                                                        <Package size={32} className="text-success opacity-50" />
                                                     </div>
-                                                ))}
-                                                {lowStockItems.length > 6 && (
-                                                    <div className="p-3 text-center border-top">
-                                                        <Link to="/inventory" className="small text-decoration-none fw-semibold text-primary">
-                                                            View All Low Stock ({lowStockItems.length})
-                                                        </Link>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-5 px-4">
-                                                <Package size={32} className="text-success opacity-50 mb-2" />
-                                                <p className="text-muted small mb-0">Stock levels are healthy</p>
-                                                <p className="x-small text-muted mt-1">All products are above threshold levels</p>
-                                            </div>
-                                        )}
+                                                    <p className="small mb-0 fw-bold text-dark">Stock levels are healthy</p>
+                                                    <p className="x-small text-muted mt-1 text-center">All products are above threshold levels</p>
+                                                </div>
+                                            )}
+                                        </div>
                                     </Card.Body>
                                 </Card>
                             </Col>
@@ -502,8 +501,8 @@ const Dashboard = () => {
                                 
                                 <div className="d-flex justify-content-center gap-3 flex-wrap">
                                     <Link to="/invoices">
-                                        <Button variant="primary" className="d-flex align-items-center px-4 py-2 shadow-sm fw-semibold">
-                                            <Plus size={16} className="me-2" /> Create Invoice
+                                        <Button variant="outline-primary" className="d-flex align-items-center px-4 py-2 bg-white shadow-sm fw-semibold overview-action-btn">
+                                            <FileText size={16} className="me-2" /> View Invoice
                                         </Button>
                                     </Link>
                                     <Link to="/customers">
@@ -513,7 +512,7 @@ const Dashboard = () => {
                                     </Link>
                                     <Link to="/products">
                                         <Button variant="outline-primary" className="d-flex align-items-center px-4 py-2 bg-white shadow-sm fw-semibold overview-action-btn">
-                                            <Package size={16} className="me-2" /> Add Product
+                                            <Package size={16} className="me-2" /> {user?.role === 'staff' ? 'View Product' : 'Add Product'}
                                         </Button>
                                     </Link>
                                     {user?.role === 'admin' && (
@@ -576,8 +575,9 @@ const Dashboard = () => {
                     border: 1px solid rgba(59, 130, 246, 0.1);
                 }
                 .card-header {
-                    background: linear-gradient(90deg, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 100%);
+                    background: transparent;
                 }
+
             `}</style>
         </div>
     );

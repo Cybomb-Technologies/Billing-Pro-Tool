@@ -22,6 +22,11 @@ const requireSuperAdmin = (req, res, next) => {
 
 router.use(requireSuperAdmin);
 
+// Verify credentials
+router.post('/verify', (req, res) => {
+    res.json({ message: 'Authenticated' });
+});
+
 // ==========================================
 // ORGANIZATION MANAGEMENT (Clients)
 // ==========================================
@@ -29,7 +34,9 @@ router.use(requireSuperAdmin);
 // 1. Get All Organizations
 router.get('/organizations', async (req, res) => {
     try {
-        const orgs = await Organization.find().sort({ createdAt: -1 });
+        const { isDeleted } = req.query;
+        const query = isDeleted === 'true' ? { isDeleted: true } : { isDeleted: { $ne: true } };
+        const orgs = await Organization.find(query).sort({ createdAt: -1 });
         res.json(orgs);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -135,10 +142,19 @@ router.post('/organizations', async (req, res) => {
 // 3. Update Organization
 router.put('/organizations/:id', async (req, res) => {
     try {
-        const { name, ownerEmail, planType } = req.body;
+        const { name, ownerEmail, planType, password } = req.body;
+        
+        const updateData = { name, ownerEmail, planType };
+        
+        // If password is provided and not empty, hash it and add to update
+        if (password && password.trim() !== '') {
+            const salt = await bcrypt.genSalt(10);
+            updateData.password = await bcrypt.hash(password, salt);
+        }
+
         const org = await Organization.findByIdAndUpdate(
             req.params.id, 
-            { name, ownerEmail, planType },
+            updateData,
             { new: true, runValidators: true }
         );
         if (!org) return res.status(404).json({ message: 'Organization not found' });
@@ -161,7 +177,6 @@ router.patch('/organizations/:id/status', async (req, res) => {
             { new: true }
         );
         if (!org) return res.status(404).json({ message: 'Organization not found' });
-        if (!org) return res.status(404).json({ message: 'Organization not found' });
         
         // Log Activity
         logActivity({
@@ -179,18 +194,53 @@ router.patch('/organizations/:id/status', async (req, res) => {
     }
 });
 
-// 5. Delete Organization
+// 5. Delete Organization (Soft Delete)
 router.delete('/organizations/:id', async (req, res) => {
     try {
-        const org = await Organization.findByIdAndDelete(req.params.id);
+        const org = await Organization.findByIdAndUpdate(req.params.id, {
+            isDeleted: true,
+            deletedAt: new Date(),
+            status: 'inactive'
+        }, { new: true });
+        
         if (!org) return res.status(404).json({ message: 'Organization not found' });
         
-        // Optional: Cascade delete tenants or just leave them?
-        // For safety, let's keep tenants but maybe sidebar them. 
-        // Ideally we should delete tenants too, but that's a destructive op on DBs.
-        // Let's just delete the Org record for now as per "make delete function" request.
+        // Log Activity
+        logActivity({
+            req: { ...req, user: { role: 'superadmin', name: 'SuperAdmin' } },
+            action: 'DELETE',
+            module: 'ORGANIZATION',
+            description: `Moved Organization to Trash: ${org.name}`,
+            targetId: org._id
+        });
         
-        res.json({ message: 'Organization deleted successfully' });
+        res.json({ message: 'Organization moved to trash successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// 6. Restore Organization
+router.patch('/organizations/:id/restore', async (req, res) => {
+    try {
+        const org = await Organization.findByIdAndUpdate(req.params.id, {
+            isDeleted: false,
+            deletedAt: null,
+            status: 'active'
+        }, { new: true });
+        
+        if (!org) return res.status(404).json({ message: 'Organization not found' });
+        
+        // Log Activity
+        logActivity({
+            req: { ...req, user: { role: 'superadmin', name: 'SuperAdmin' } },
+            action: 'RESTORE',
+            module: 'ORGANIZATION',
+            description: `Restored Organization from Trash: ${org.name}`,
+            targetId: org._id
+        });
+        
+        res.json({ message: 'Organization restored successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -204,8 +254,14 @@ router.delete('/organizations/:id', async (req, res) => {
 router.get('/tenants', async (req, res) => {
     try {
         // Optional: Filter by specific Organization if Query Param exists
-        const { organizationId } = req.query;
-        const filter = organizationId ? { organizationId } : {};
+        const { organizationId, isDeleted } = req.query;
+        let filter = organizationId ? { organizationId } : {};
+        
+        if (isDeleted === 'true') {
+            filter.isDeleted = true;
+        } else {
+            filter.isDeleted = { $ne: true };
+        }
 
         const tenants = await Tenant.find(filter).populate('organizationId', 'name ownerEmail');
         res.json(tenants);
@@ -351,7 +407,6 @@ router.patch('/tenants/:id/status', async (req, res) => {
             { new: true }
         );
         if (!tenant) return res.status(404).json({ message: 'Branch not found' });
-        if (!tenant) return res.status(404).json({ message: 'Branch not found' });
         
         // Log Activity
         logActivity({
@@ -369,16 +424,53 @@ router.patch('/tenants/:id/status', async (req, res) => {
     }
 });
 
-// 5. Delete Tenant
+// 5. Delete Tenant (Soft Delete)
 router.delete('/tenants/:id', async (req, res) => {
     try {
-        const tenant = await Tenant.findByIdAndDelete(req.params.id);
+        const tenant = await Tenant.findByIdAndUpdate(req.params.id, {
+            isDeleted: true,
+            deletedAt: new Date(),
+            status: 'suspended' // Or 'archived'
+        }, { new: true });
+
         if (!tenant) return res.status(404).json({ message: 'Branch not found' });
         
-        // Note: We are currently NOT deleting the actual separate database.
-        // That is a high-risk operation. We are just removing the record.
+        // Log Activity
+        logActivity({
+            req: { ...req, user: { role: 'superadmin', name: 'SuperAdmin' } },
+            action: 'DELETE',
+            module: 'BRANCH',
+            description: `Moved Branch to Trash: ${tenant.name} (${tenant.slug})`,
+            targetId: tenant._id
+        });
         
-        res.json({ message: 'Branch deleted successfully.' });
+        res.json({ message: 'Branch moved to trash successfully.' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// 6. Restore Tenant
+router.patch('/tenants/:id/restore', async (req, res) => {
+    try {
+        const tenant = await Tenant.findByIdAndUpdate(req.params.id, {
+            isDeleted: false,
+            deletedAt: null,
+            status: 'active'
+        }, { new: true });
+
+        if (!tenant) return res.status(404).json({ message: 'Branch not found' });
+        
+        // Log Activity
+        logActivity({
+            req: { ...req, user: { role: 'superadmin', name: 'SuperAdmin' } },
+            action: 'RESTORE',
+            module: 'BRANCH',
+            description: `Restored Branch from Trash: ${tenant.name}`,
+            targetId: tenant._id
+        });
+        
+        res.json({ message: 'Branch restored successfully.' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -449,12 +541,12 @@ router.get('/organizations/:id/aggregated-stats', async (req, res) => {
                 sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
                 
                 const salesAgg = await Invoice.aggregate([
-                    { $match: { isDeleted: { $ne: true }, status: 'paid', date: { $gte: sixMonthsAgo } } },
+                    { $match: { isDeleted: { $ne: true }, status: 'paid', createdAt: { $gte: sixMonthsAgo } } },
                     {
                         $group: {
                             _id: { 
-                                month: { $month: "$date" }, 
-                                year: { $year: "$date" } 
+                                month: { $month: "$createdAt" }, 
+                                year: { $year: "$createdAt" } 
                             },
                             total: { $sum: "$total" }
                         }
@@ -591,10 +683,10 @@ router.get('/organizations/:id/aggregated-stats', async (req, res) => {
            const sixMonthsAgo = new Date();
            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
            const salesAgg = await Invoice.aggregate([
-               { $match: { isDeleted: { $ne: true }, status: 'paid', date: { $gte: sixMonthsAgo } } },
+               { $match: { isDeleted: { $ne: true }, status: 'paid', createdAt: { $gte: sixMonthsAgo } } },
                {
                    $group: {
-                       _id: { month: { $month: "$date" }, year: { $year: "$date" } },
+                       _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
                        total: { $sum: "$total" }
                    }
                },

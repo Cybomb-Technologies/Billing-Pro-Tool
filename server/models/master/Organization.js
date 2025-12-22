@@ -29,6 +29,13 @@ const OrganizationSchema = new mongoose.Schema({
     enum: ['self', 'organization'], // 'self' = Single Branch, 'organization' = Multi Branch Panel
     default: 'self'
   },
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
+  deletedAt: {
+    type: Date
+  },
   createdAt: {
     type: Date,
     default: Date.now

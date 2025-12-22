@@ -6,6 +6,7 @@ export const ActivityLogTable = ({
     fetchUrl, 
     contextToken, 
     isSuperAdmin = false, 
+    isClientSuperAdmin = false,
     tenantSlug = '',
     organizations = [], // For SuperAdmin Filter
     tenants = [] // For SuperAdmin Filter
@@ -37,9 +38,9 @@ export const ActivityLogTable = ({
                 ...(search && { search }),
                 ...(startDate && { startDate }),
                 ...(endDate && { endDate }),
-                ...(tenantSlug && !isSuperAdmin && { slug: tenantSlug }), // For client side
+                ...(tenantSlug && !isSuperAdmin && !isClientSuperAdmin && { slug: tenantSlug }), // For client side regular admin
                 ...(isSuperAdmin && filterOrg && { organizationId: filterOrg }),
-                ...(isSuperAdmin && filterBranch && { slug: filterBranch })
+                ...((isSuperAdmin || isClientSuperAdmin) && filterBranch && { slug: filterBranch })
             });
 
             // Determine URL
@@ -181,36 +182,43 @@ export const ActivityLogTable = ({
                     </Row>
                     
                     {/* Super Admin Second Row */}
-                    {isSuperAdmin && (
+                    {(isSuperAdmin || isClientSuperAdmin) && (
                         <Row className="mt-3 gy-3 align-items-end">
-                             <Col md={4}>
-                                <Form.Label className="small text-muted fw-bold text-uppercase ls-1">Organization</Form.Label>
-                                <Form.Select 
-                                    className="shadow-sm form-select-lg fs-6"
-                                    value={filterOrg} 
-                                    onChange={e => { setFilterOrg(e.target.value); setFilterBranch(''); }}
-                                >
-                                    <option value="">All Organizations</option>
-                                    {organizations.map(org => (
-                                        <option key={org._id} value={org._id}>{org.name}</option>
-                                    ))}
-                                </Form.Select>
-                             </Col>
-                             <Col md={4}>
+                             {/* Organization Filter - Only for Super Admin */}
+                             {isSuperAdmin && (
+                                 <Col md={4}>
+                                    <Form.Label className="small text-muted fw-bold text-uppercase ls-1">Organization</Form.Label>
+                                    <Form.Select 
+                                        className="shadow-sm form-select-lg fs-6"
+                                        value={filterOrg} 
+                                        onChange={e => { setFilterOrg(e.target.value); setFilterBranch(''); }}
+                                    >
+                                        <option value="">All Organizations</option>
+                                        {organizations.map(org => (
+                                            <option key={org._id} value={org._id}>{org.name}</option>
+                                        ))}
+                                    </Form.Select>
+                                 </Col>
+                             )}
+
+                             {/* Branch Filter - For Super Admin and Client Super Admin */}
+                             <Col md={isSuperAdmin ? 4 : 8}>
                                 <Form.Label className="small text-muted fw-bold text-uppercase ls-1">Branch</Form.Label>
                                 <Form.Select 
                                     className="shadow-sm form-select-lg fs-6"
                                     value={filterBranch} 
                                     onChange={e => setFilterBranch(e.target.value)}
-                                    disabled={!filterOrg}
+                                    // Disable branch select if super admin hasn't selected an org yet (unless client super admin)
+                                    disabled={isSuperAdmin && !filterOrg}
                                 >
-                                    <option value="">{filterOrg ? 'All Branches' : 'Select Org First'}</option>
-                                    {availableBranches.map(b => (
-                                        <option key={b.slug} value={b.slug}>{b.name}</option>
+                                    <option value="">{isSuperAdmin && !filterOrg ? 'Select Org First' : 'All Branches'}</option>
+                                    {(isClientSuperAdmin ? tenants : availableBranches).map(b => (
+                                        <option key={b.slug} value={b.slug}>{b.name} ({b.slug})</option>
                                     ))}
                                 </Form.Select>
                              </Col>
-                             <Col md={4} className="d-flex justify-content-end">
+
+                             <Col md={isSuperAdmin ? 4 : 4} className="d-flex justify-content-end">
                                  <Button 
                                     variant="outline-danger" 
                                     size="lg" 
@@ -223,7 +231,8 @@ export const ActivityLogTable = ({
                         </Row>
                     )}
                     
-                    {!isSuperAdmin && (
+                    {/* Just for regular Admin/Staff (Standard Filter Clear) */}
+                    {!isSuperAdmin && !isClientSuperAdmin && (
                         <Row className="mt-2">
                             <Col className="d-flex justify-content-end">
                                 <Button 

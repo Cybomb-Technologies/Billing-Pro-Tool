@@ -150,8 +150,8 @@ const Billing = () => {
 
   const handleCreateCustomer = useCallback(async () => {
     try {
-      if (!localCustomerPayload.name || !localCustomerPayload.phone) {
-        showAlert('Please enter Contact Name and Phone.', 'warning');
+      if (!localCustomerPayload.name) {
+        showAlert('Please enter Contact Name.', 'warning');
         return;
       }
       const created = await createCustomer(localCustomerPayload);
@@ -777,7 +777,7 @@ const Billing = () => {
                                   </div>
                                   <Row className="g-2">
                                     <Col md={6}><Form.Control placeholder="Name *" name="name" value={localCustomerPayload.name} onChange={handleLocalCustomerPayloadChange} size="sm"/></Col>
-                                    <Col md={6}><Form.Control placeholder="Phone *" name="phone" value={localCustomerPayload.phone} onChange={handleLocalCustomerPayloadChange} size="sm"/></Col>
+                                    <Col md={6}><Form.Control placeholder="Phone" name="phone" value={localCustomerPayload.phone} onChange={handleLocalCustomerPayloadChange} size="sm"/></Col>
                                     
                                     <Col md={12}>
                                         <div className="text-end mb-2">
@@ -805,7 +805,7 @@ const Billing = () => {
                                     )}
 
                                     <Col md={12} className="text-end">
-                                        <Button size="sm" variant="success" onClick={handleCreateCustomer} disabled={!localCustomerPayload.name || !localCustomerPayload.phone}>Create & Select</Button>
+                                        <Button size="sm" variant="success" onClick={handleCreateCustomer} disabled={!localCustomerPayload.name}>Create & Select</Button>
                                     </Col>
                                   </Row>
                             </div>

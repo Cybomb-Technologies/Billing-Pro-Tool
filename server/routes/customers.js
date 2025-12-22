@@ -8,22 +8,29 @@ const createObjectCsvStringifier = pkg.createObjectCsvStringifier;
 const router = express.Router();
 
 // Helper function to normalize phone number
-const normalizePhone = (phone) => phone.replace(/[^\d]/g, '');
+const normalizePhone = (phone) => phone ? phone.replace(/[^\d]/g, '') : '';
 
 // Helper function to check duplicate customer (FIXED: BusinessName removed from uniqueness check)
 const checkDuplicateCustomer = async (Customer, phone, email, businessName, excludeId = null) => {
   const normalizedPhone = normalizePhone(phone);
   
   // 1. Check for duplicate Phone or Email
-  let filter = { 
-    $or: [
-      { phone: normalizedPhone }
-    ]
-  };
+  let conditions = [];
+  if (normalizedPhone) {
+      conditions.push({ phone: normalizedPhone });
+  }
 
   if (email && email.trim()) {
-      filter.$or.push({ email: email.toLowerCase().trim() });
+      conditions.push({ email: email.toLowerCase().trim() });
   }
+
+  if (conditions.length === 0) {
+      return { exists: false };
+  }
+
+  let filter = { 
+    $or: conditions
+  };
 
   // NOTE: Business Name check is removed from uniqueness logic to allow multiple contacts from the same organization.
 
@@ -142,8 +149,8 @@ router.post('/', auth, async (req, res) => {
     const { Customer } = req.tenantModels;
     const { phone, email, businessName } = req.body;
     
-    if (!phone?.trim()) {
-      return res.status(400).json({ message: 'Phone number is required' });
+    if (!req.body.name?.trim()) {
+      return res.status(400).json({ message: 'Name is required' });
     }
 
     // Check for duplicates
@@ -191,8 +198,8 @@ router.put('/:id', auth, async (req, res) => {
     const { phone, email, businessName } = req.body;
     const customerId = req.params.id;
 
-    if (!phone?.trim()) {
-        return res.status(400).json({ message: 'Phone number is required' });
+    if (!req.body.name?.trim()) {
+        return res.status(400).json({ message: 'Name is required' });
     }
   
     // Check for duplicates excluding current customer

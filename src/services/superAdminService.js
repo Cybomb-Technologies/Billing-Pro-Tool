@@ -7,8 +7,9 @@ const getHeaders = (adminKey) => ({
 
 export const superAdminService = {
   // Organizations
-  getOrganizations: async (adminKey) => {
-    const response = await fetch(`${API_BASE_URL}/super-admin/organizations`, {
+  getOrganizations: async (adminKey, isDeleted = false) => {
+    const url = `${API_BASE_URL}/super-admin/organizations${isDeleted ? '?isDeleted=true' : ''}`;
+    const response = await fetch(url, {
       headers: getHeaders(adminKey)
     });
     if (!response.ok) {
@@ -16,6 +17,17 @@ export const superAdminService = {
         throw new Error(error.message || 'Failed to fetch organizations');
     }
     return response.json();
+  },
+
+  verify: async (adminKey) => {
+    const response = await fetch(`${API_BASE_URL}/super-admin/verify`, {
+        method: 'POST',
+        headers: getHeaders(adminKey)
+    });
+    if (!response.ok) {
+        throw new Error('Invalid Password');
+    }
+    return true;
   },
 
   createOrganization: async (adminKey, data) => {
@@ -69,10 +81,23 @@ export const superAdminService = {
     return response.json();
   },
 
+  restoreOrganization: async (adminKey, id) => {
+    const response = await fetch(`${API_BASE_URL}/super-admin/organizations/${id}/restore`, {
+        method: 'PATCH',
+        headers: getHeaders(adminKey)
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to restore organization');
+    }
+    return response.json();
+  },
+
   // Tenants
-  getTenants: async (adminKey, orgId = null) => {
-    let url = `${API_BASE_URL}/super-admin/tenants`;
-    if (orgId) url += `?organizationId=${orgId}`;
+  getTenants: async (adminKey, orgId = null, isDeleted = false) => {
+    let url = `${API_BASE_URL}/super-admin/tenants?`;
+    if (orgId) url += `organizationId=${orgId}&`;
+    if (isDeleted) url += `isDeleted=true&`;
     
     const response = await fetch(url, {
       headers: getHeaders(adminKey)
@@ -131,6 +156,18 @@ export const superAdminService = {
     if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Failed to delete branch');
+    }
+    return response.json();
+  },
+
+  restoreTenant: async (adminKey, id) => {
+    const response = await fetch(`${API_BASE_URL}/super-admin/tenants/${id}/restore`, {
+        method: 'PATCH',
+        headers: getHeaders(adminKey)
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to restore branch');
     }
     return response.json();
   },

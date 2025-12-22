@@ -23,10 +23,11 @@ const customerSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
-    required: true,
+    required: false, // Changed from true to allow optional phone
     trim: true,
     validate: {
       validator: function(phone) {
+        if (!phone) return true; // Fix: Allow empty phone
         // Remove all non-digit characters and check length
         const digitsOnly = phone.replace(/\D/g, '');
         return digitsOnly.length >= 10;

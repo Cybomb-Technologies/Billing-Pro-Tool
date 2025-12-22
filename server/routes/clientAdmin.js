@@ -47,6 +47,9 @@ router.post('/login', async (req, res) => {
         }
 
         // Verify Password
+        if (!org.password) {
+             return res.status(401).json({ message: 'Account setup incomplete. Please contact Super Admin to reset password.' });
+        }
         const isMatch = await bcrypt.compare(password, org.password);
         if (!isMatch) {
             return res.status(401).json({ message: 'Invalid Credentials' });
@@ -182,12 +185,12 @@ router.get('/dashboard-stats', requireClientAdmin, async (req, res) => {
                 sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
                 
                 const salesAgg = await Invoice.aggregate([
-                    { $match: { isDeleted: { $ne: true }, status: 'paid', date: { $gte: sixMonthsAgo } } },
+                    { $match: { isDeleted: { $ne: true }, status: 'paid', createdAt: { $gte: sixMonthsAgo } } },
                     {
                         $group: {
                             _id: { 
-                                month: { $month: "$date" }, 
-                                year: { $year: "$date" } 
+                                month: { $month: "$createdAt" }, 
+                                year: { $year: "$createdAt" } 
                             },
                             total: { $sum: "$total" }
                         }
@@ -382,10 +385,10 @@ router.get('/branch/:tenantId/dashboard', requireClientAdmin, validateBranchOwne
         const sixMonthsAgo = new Date();
         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
         const salesAgg = await Invoice.aggregate([
-            { $match: { isDeleted: { $ne: true }, status: 'paid', date: { $gte: sixMonthsAgo } } },
+            { $match: { isDeleted: { $ne: true }, status: 'paid', createdAt: { $gte: sixMonthsAgo } } },
             {
                 $group: {
-                    _id: { month: { $month: "$date" }, year: { $year: "$date" } },
+                    _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
                     total: { $sum: "$total" }
                 }
             },
@@ -440,6 +443,90 @@ router.get('/branch/:tenantId/dashboard', requireClientAdmin, validateBranchOwne
     }
 });
 
+// GET /api/client-admin/branch/:tenantId/invoices
+router.get('/branch/:tenantId/invoices', requireClientAdmin, validateBranchOwnership, async (req, res) => {
+    try {
+        const { page = 1, limit = 20, search = '', status } = req.query;
+        const { models } = await getTenantDB(req.targetTenant.slug);
+        const { Invoice } = models;
+
+        const query = { isDeleted: { $ne: true } };
+        
+        if (status && status !== 'all') {
+            query.status = status;
+        }
+
+        if (search) {
+            query.$or = [
+                { invoiceNumber: { $regex: search, $options: 'i' } },
+                { customerName: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const invoices = await Invoice.find(query)
+            .sort({ createdAt: -1 })
+            .populate('customer', 'name email phone')
+            .skip((page - 1) * limit)
+            .limit(parseInt(limit));
+        
+        const total = await Invoice.countDocuments(query);
+
+        res.json({
+            invoices,
+            totalPages: Math.ceil(total / limit),
+            currentPage: parseInt(page),
+            totalInvoices: total
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to fetch invoices' });
+    }
+});
+
+// GET /api/client-admin/branch/:tenantId/products
+router.get('/branch/:tenantId/products', requireClientAdmin, validateBranchOwnership, async (req, res) => {
+    try {
+        const { page = 1, limit = 20, search = '', category = '' } = req.query;
+        const { models } = await getTenantDB(req.targetTenant.slug);
+        const { Product } = models;
+
+        const query = { isDeleted: { $ne: true } };
+        if (search) {
+             query.name = { $regex: search, $options: 'i' };
+        }
+        if (category) {
+            query.category = category;
+        }
+
+        const products = await Product.find(query)
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(parseInt(limit));
+        
+        const total = await Product.countDocuments(query);
+
+        res.json({
+            products,
+            totalPages: Math.ceil(total / limit),
+            currentPage: parseInt(page),
+            totalProducts: total
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to fetch products' });
+    }
+});
+
+// GET /api/client-admin/branch/:tenantId/categories
+router.get('/branch/:tenantId/categories', requireClientAdmin, validateBranchOwnership, async (req, res) => {
+    try {
+        const { models } = await getTenantDB(req.targetTenant.slug);
+        const { Product } = models;
+        const categories = await Product.distinct('category', { isDeleted: { $ne: true } });
+        res.json(categories.filter(c => c)); // Remove null/empty
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to fetch categories' });
+    }
+});
+
 // GET /api/client-admin/branch/:tenantId/export/:type
 // type = 'invoices' | 'products'
 router.get('/branch/:tenantId/export/:type', requireClientAdmin, validateBranchOwnership, async (req, res) => {
@@ -451,11 +538,11 @@ router.get('/branch/:tenantId/export/:type', requireClientAdmin, validateBranchO
         let fields = [];
 
         if (type === 'invoices') {
-            const invoices = await models.Invoice.find({ isDeleted: { $ne: true } }).sort({ date: -1 });
+            const invoices = await models.Invoice.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 });
             // Flatten/Format for CSV
             data = invoices.map(inv => ({
                 InvoiceNumber: inv.invoiceNumber,
-                Date: new Date(inv.date).toLocaleDateString(),
+                Date: new Date(inv.createdAt).toLocaleDateString(),
                 Customer: inv.customerName,
                 Total: inv.total,
                 Status: inv.status,
@@ -485,6 +572,115 @@ router.get('/branch/:tenantId/export/:type', requireClientAdmin, validateBranchO
 
     } catch (error) {
          res.status(500).json({ message: 'Export failed' });
+    }
+});
+
+// GET /api/client-admin/activity-logs
+// GET /api/client-admin/activity-logs
+router.get('/activity-logs', requireClientAdmin, async (req, res) => {
+    try {
+        console.log('Fetching Activity Logs. Query:', req.query);
+        const { page = 1, limit = 20, module, action, search, slug, startDate, endDate } = req.query;
+        
+        // Helper to build query
+        const buildQuery = () => {
+             const q = {};
+             if (module) q.module = module;
+             if (action) q.action = action;
+             if (search) q.description = { $regex: search, $options: 'i' };
+             if (startDate || endDate) {
+                q.timestamp = {};
+                if (startDate) q.timestamp.$gte = new Date(startDate);
+                if (endDate) {
+                    const end = new Date(endDate);
+                    end.setHours(23, 59, 59, 999);
+                    q.timestamp.$lte = end;
+                }
+             }
+             return q;
+        };
+
+        // If specific branch selected
+        if (slug) {
+             console.log('Filtering by branch slug:', slug);
+             // Verify ownership
+             // Fix: Use Tenant model, NOT Branch
+             const branch = await Tenant.findOne({ slug, organizationId: req.clientAdmin._id });
+             if (!branch) {
+                 console.log('Branch not found or denied:', slug);
+                 return res.status(403).json({ message: 'Access denied' });
+             }
+
+             const { models } = await getTenantDB(slug);
+             const { ActivityLog } = models;
+             const query = buildQuery();
+
+             const logs = await ActivityLog.find(query)
+                .sort({ timestamp: -1 })
+                .skip((page - 1) * limit)
+                .limit(parseInt(limit))
+                .populate('performedBy', 'name email'); // Populate if user ref exists
+            
+             const total = await ActivityLog.countDocuments(query);
+
+             return res.json({
+                 logs,
+                 totalPages: Math.ceil(total / limit),
+                 currentPage: parseInt(page),
+                 totalCount: total
+             });
+        }
+
+        // AGGREGATION MODE (All branches)
+        // 1. Get all branches for this org
+        console.log('Aggregating logs from all branches for Org:', req.clientAdmin._id);
+        const branches = await Tenant.find({ organizationId: req.clientAdmin._id, status: 'active' });
+        
+        let allLogs = [];
+        const query = buildQuery();
+
+        // 2. Fetch recent logs from each branch
+        for (const branch of branches) {
+            try {
+                const { models } = await getTenantDB(branch.slug);
+                const { ActivityLog } = models;
+                
+                // Add tenant info to display in aggregated view
+                const branchLogs = await ActivityLog.find(query)
+                    .sort({ timestamp: -1 })
+                    .limit(parseInt(limit) * parseInt(page)) 
+                    .lean(); 
+                
+                // Attach branch name for UI context
+                const enrichedLogs = branchLogs.map(log => ({
+                    ...log,
+                    tenantName: branch.name,
+                    tenantSlug: branch.slug
+                }));
+                
+                allLogs = [...allLogs, ...enrichedLogs];
+            } catch (e) {
+                console.error(`Failed to fetch logs from ${branch.slug}`, e);
+            }
+        }
+
+        // 3. Sort merged logs
+        allLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        // 4. Paginate in memory
+        const startIndex = (page - 1) * limit;
+        const slicedLogs = allLogs.slice(startIndex, startIndex + parseInt(limit));
+        
+        res.json({
+            logs: slicedLogs,
+            totalPages: Math.ceil(allLogs.length / limit), 
+            currentPage: parseInt(page),
+            totalCount: allLogs.length
+        });
+
+    } catch (error) {
+        console.error('Activity Log Error:', error);
+        res.status(500).json({ message: 'Failed to fetch activity logs' });
     }
 });
 

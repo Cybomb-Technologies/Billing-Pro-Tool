@@ -17,8 +17,8 @@ export const StatCard = ({ title, value, subtext, icon: Icon, color, trend }) =>
             {subtext && <small className="text-muted small">{subtext}</small>}
             {trend !== undefined && (
                  <div className="mt-2 d-flex align-items-center small">
-                    {trend >= 0 ? <TrendingUp size={14} className="text-success me-1"/> : <TrendingDown size={14} className="text-danger me-1"/>}
-                    <span className={trend >= 0 ? "text-success fw-bold" : "text-danger fw-bold"}>{Math.abs(trend)}%</span>
+                    {trend >= 0 ? <TrendingUp size={14} className="text-primary me-1"/> : <TrendingDown size={14} className="text-primary me-1"/>}
+                    <span className="text-primary fw-bold">{Math.abs(trend)}%</span>
                     <span className="text-muted ms-1">vs last period</span>
                  </div>
             )}

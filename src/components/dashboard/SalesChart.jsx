@@ -32,9 +32,11 @@ export const SalesChart = ({ data, title = "Sales Trend", filter, onFilterChange
         if (!chart) return;
 
         const ctx = chart.ctx;
+        // CREATE A RICHER GRADIENT
         const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-        gradient.addColorStop(0, 'rgba(13, 110, 253, 0.9)');
-        gradient.addColorStop(1, 'rgba(13, 110, 253, 0.1)');
+        gradient.addColorStop(0, '#3b82f6'); // Start with a strong blue
+        gradient.addColorStop(0.6, 'rgba(59, 130, 246, 0.4)'); // Fade out
+        gradient.addColorStop(1, 'rgba(59, 130, 246, 0.05)'); // Almost transparent
 
         setChartData({
             labels: hasData ? data.map(d => d.name) : [],
@@ -42,12 +44,13 @@ export const SalesChart = ({ data, title = "Sales Trend", filter, onFilterChange
                 label: 'Revenue',
                 data: hasData ? data.map(d => d.amount) : [],
                 backgroundColor: gradient,
-                hoverBackgroundColor: '#0a58ca',
-                borderColor: 'rgba(13, 110, 253, 1)',
+                hoverBackgroundColor: '#2563eb',
+                borderColor: '#3b82f6',
                 borderWidth: 1,
-                borderRadius: 6,
-                barPercentage: 0.6,
-                categoryPercentage: 0.8
+                borderRadius: 4, // Slightly sharper corners for modern look
+                barPercentage: 0.5, // Slightly thinner bars
+                categoryPercentage: 0.7,
+                maxBarThickness: 32 // Prevent overly wide bars
             }]
         });
     }, [data, hasData]);
@@ -58,16 +61,17 @@ export const SalesChart = ({ data, title = "Sales Trend", filter, onFilterChange
         plugins: { 
             legend: { display: false },
             tooltip: {
-                backgroundColor: '#ffffff',
-                titleColor: '#111827',
-                bodyColor: '#4b5563',
-                titleFont: { size: 13, weight: 'bold', family: "'Inter', sans-serif" },
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                titleColor: '#1e293b',
+                bodyColor: '#475569',
+                titleFont: { size: 13, weight: '600', family: "'Inter', sans-serif" },
                 bodyFont: { size: 12, family: "'Inter', sans-serif" },
-                borderColor: '#e5e7eb',
+                borderColor: '#e2e8f0',
                 borderWidth: 1,
                 padding: 12,
                 cornerRadius: 8,
                 displayColors: false,
+                boxPadding: 4,
                 callbacks: {
                     label: function(context) {
                         return ` Revenue: ₹${Number(context.parsed.y).toLocaleString('en-IN')}`;
@@ -79,16 +83,19 @@ export const SalesChart = ({ data, title = "Sales Trend", filter, onFilterChange
             y: { 
                 beginAtZero: true, 
                 grid: { 
-                    color: '#f3f4f6', 
+                    color: '#f1f5f9', 
                     drawBorder: false,
-                    drawTicks: false
+                    drawTicks: false,
+                    borderDash: [5, 5] // Dashed grid lines
                 },
                 ticks: { 
-                    font: { size: 11, family: "'Inter', sans-serif" }, 
-                    color: '#6b7280',
-                    padding: 8,
+                    font: { size: 11, family: "'Inter', sans-serif", weight: '500' }, 
+                    color: '#94a3b8',
+                    padding: 10,
+                    cursor: 'default',
                     callback: function(value) {
-                         if (value >= 1000000) return '₹' + (value/1000000).toFixed(1) + 'M';
+                         if (value >= 10000000) return '₹' + (value/10000000).toFixed(1) + 'Cr';
+                         if (value >= 100000) return '₹' + (value/100000).toFixed(1) + 'L';
                          if (value >= 1000) return '₹' + (value/1000).toFixed(0) + 'k';
                          return '₹' + value;
                     }
@@ -99,18 +106,21 @@ export const SalesChart = ({ data, title = "Sales Trend", filter, onFilterChange
                 grid: { display: false },
                 ticks: { 
                     font: { size: 11, family: "'Inter', sans-serif" }, 
-                    color: '#6b7280',
-                    padding: 8
+                    color: '#94a3b8',
+                    padding: 5,
+                    maxRotation: 0,
+                    autoSkip: true,
+                    autoSkipPadding: 20
                 },
                 border: { display: false }
             } 
         },
         layout: { 
             padding: { 
-                top: 16, 
-                bottom: 16, 
-                left: 12, 
-                right: 12 
+                top: 10, 
+                bottom: 5, 
+                left: 0, 
+                right: 0 
             } 
         },
         interaction: {
@@ -120,18 +130,20 @@ export const SalesChart = ({ data, title = "Sales Trend", filter, onFilterChange
     };
 
     return (
-        <Card className="border-0 shadow-sm h-100">
-            <Card.Header className="bg-white py-3 border-bottom d-flex justify-content-between align-items-center px-4">
+        <Card className="border-0 shadow-sm h-100 chart-card">
+            <Card.Header className="bg-white py-3 border-bottom-0 d-flex justify-content-between align-items-center px-4 pt-4">
                 <h6 className="mb-0 fw-bold d-flex align-items-center text-dark">
-                    <TrendingUp size={18} className="me-2 text-primary"/>
+                    <div className="bg-primary bg-opacity-10 rounded p-2 me-2 doc-icon">
+                        <TrendingUp size={18} className="text-primary"/>
+                    </div>
                     {title}
                 </h6>
                 <Form.Select 
                     size="sm" 
-                    style={{ width: 'auto', minWidth: '120px', fontSize: '0.85rem' }}
+                    style={{ width: 'auto', minWidth: '110px', fontSize: '0.8rem', borderRadius: '6px' }}
                     value={filter}
                     onChange={(e) => onFilterChange && onFilterChange(e.target.value)}
-                    className="border-0 bg-light-subtle fw-medium text-dark-emphasis cursor-pointer shadow-sm"
+                    className="border-light bg-light fw-medium text-secondary cursor-pointer shadow-sm"
                 >
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
@@ -139,15 +151,17 @@ export const SalesChart = ({ data, title = "Sales Trend", filter, onFilterChange
                     <option value="yearly">Yearly</option>
                 </Form.Select>
             </Card.Header>
-            <Card.Body className="p-4">
+            <Card.Body className="px-4 pb-4 pt-2">
                 <div style={{ height: '320px', width: '100%' }}>
                      {hasData ? (
                         <Bar ref={chartRef} data={chartData} options={options} />
                      ) : (
                         <div className="h-100 d-flex flex-column align-items-center justify-content-center text-muted p-4">
-                            <BarChart2 size={48} className="mb-3 opacity-25" />
-                            <p className="small mb-0 fw-medium text-center">No sales data found for this period</p>
-                            <p className="x-small text-muted mt-1 text-center">Try selecting a different time period</p>
+                            <div className="bg-light rounded-circle p-3 mb-3">
+                                <BarChart2 size={32} className="opacity-50 text-secondary" />
+                            </div>
+                            <p className="small mb-0 fw-bold text-secondary">No sales activity yet</p>
+                            <p className="x-small text-muted mt-1 text-center">Sales data will appear here once you create invoices</p>
                         </div>
                      )}
                 </div>

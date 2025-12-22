@@ -3,7 +3,7 @@ import {
   Container, Row, Col, Card, Button, Table, Form, 
   InputGroup, Modal, Badge, Dropdown, Alert, Spinner 
 } from 'react-bootstrap';
-import { Shield, Building, GitBranch, BarChart2, Plus, RefreshCw, LogOut, Edit, Trash2, Power, MoreVertical, Search, Clock, Wallet, AlertTriangle, Package, Users, UserCheck, UserCog, Filter } from 'lucide-react';
+import { Shield, Building, GitBranch, BarChart2, Plus, RefreshCw, LogOut, Edit, Trash2, Power, MoreVertical, Search, Clock, Wallet, AlertTriangle, Package, Users, UserCheck, UserCog, Filter, RotateCcw, Lock } from 'lucide-react';
 import { superAdminService } from '../services/superAdminService';
 import { ActivityLogTable } from '../components/ActivityLogTable';
 
@@ -44,6 +44,7 @@ const SuperAdmin = () => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [logOrgId, setLogOrgId] = useState('');
     const [logBranchSlug, setLogBranchSlug] = useState('');
+    const [showTrash, setShowTrash] = useState(false);
     
     // Filters
     const [orgSearch, setOrgSearch] = useState('');
@@ -64,7 +65,7 @@ const SuperAdmin = () => {
         if (isAuthenticated) {
             fetchInitialData();
         }
-    }, [isAuthenticated]);
+    }, [isAuthenticated, showTrash]);
 
     // Reset stats view when switching orgs
     useEffect(() => {
@@ -94,8 +95,8 @@ const SuperAdmin = () => {
         setLoading(true);
         setError(null);
         try {
-            const orgs = await superAdminService.getOrganizations(adminKey);
-            const allTenants = await superAdminService.getTenants(adminKey);
+            const orgs = await superAdminService.getOrganizations(adminKey, showTrash);
+            const allTenants = await superAdminService.getTenants(adminKey, null, showTrash);
             setOrganizations(orgs);
             setTenants(allTenants);
         } catch (err) {
@@ -155,6 +156,16 @@ const SuperAdmin = () => {
         if (!window.confirm(`Mark this organization as ${newStatus}?`)) return;
         try {
             await superAdminService.toggleOrganizationStatus(adminKey, org._id, newStatus);
+            fetchInitialData();
+        } catch (err) {
+            alert(err.message);
+        }
+    };
+
+    const handleRestoreOrg = async (id) => {
+        if (!window.confirm('Restore this organization from trash?')) return;
+        try {
+            await superAdminService.restoreOrganization(adminKey, id);
             fetchInitialData();
         } catch (err) {
             alert(err.message);
@@ -221,6 +232,16 @@ const SuperAdmin = () => {
         }
     };
 
+    const handleRestoreTenant = async (id) => {
+         if (!window.confirm('Restore this branch from trash?')) return;
+         try {
+             await superAdminService.restoreTenant(adminKey, id);
+             fetchInitialData();
+         } catch (err) {
+             alert(err.message);
+         }
+    };
+
     // --- DASHBOARD DATA HANDLERS ---
 
     const fetchAggregatedStats = async () => {
@@ -277,23 +298,65 @@ const SuperAdmin = () => {
 
     // --- Render Login Screen ---
     if (!isAuthenticated) {
+        const [showPassword, setShowPassword] = useState(false);
+        const [loginLoading, setLoginLoading] = useState(false);
+        const [loginError, setLoginError] = useState('');
+
+        const handleVerifyLogin = async (e) => {
+            e.preventDefault();
+            setLoginLoading(true);
+            setLoginError('');
+            try {
+                await superAdminService.verify(adminKey);
+                // If successful
+                localStorage.setItem('billing_admin_key', adminKey);
+                setIsAuthenticated(true);
+            } catch (err) {
+                setLoginError('Invalid Password. Access Denied.');
+            } finally {
+                setLoginLoading(false);
+            }
+        };
+
         return (
             <Container className="d-flex align-items-center justify-content-center" style={{ minHeight: '100vh', background: '#f4f6f9' }}>
                 <Card className="shadow-sm border-0" style={{ width: '400px' }}>
                     <Card.Body className="p-4 text-center">
-                        <Shield className="text-primary mb-3" size={48} />
-                        <h3 className="mb-4">Super Admin Access</h3>
-                        <Form onSubmit={handleLogin}>
-                            <Form.Group className="mb-3">
-                                <Form.Control 
-                                    type="password" 
-                                    placeholder="Enter Admin Key" 
-                                    value={adminKey} 
-                                    onChange={(e) => setAdminKey(e.target.value)} 
-                                    required 
-                                />
+                        <div className="bg-primary bg-opacity-10 p-3 rounded-circle d-inline-flex mb-3">
+                            <Shield className="text-primary" size={32} />
+                        </div>
+                        <h3 className="mb-2 fw-bold">Super Admin</h3>
+                        <p className="text-muted small mb-4">Secure Access Portal</p>
+                        
+                        {loginError && <Alert variant="danger" className="py-2 small">{loginError}</Alert>}
+
+                        <Form onSubmit={handleVerifyLogin}>
+                            <Form.Group className="mb-3 text-start">
+                                <Form.Label className="small fw-bold text-muted">MASTER PASSWORD</Form.Label>
+                                <InputGroup>
+                                    <InputGroup.Text className="bg-light border-end-0">
+                                        <Lock size={16} className="text-muted"/>
+                                    </InputGroup.Text>
+                                    <Form.Control 
+                                        type={showPassword ? "text" : "password"} 
+                                        placeholder="Enter password" 
+                                        value={adminKey} 
+                                        onChange={(e) => setAdminKey(e.target.value)} 
+                                        required 
+                                        className="bg-light border-start-0 border-end-0 shadow-none"
+                                    />
+                                    <InputGroup.Text 
+                                        className="bg-light border-start-0 cursor-pointer"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        style={{cursor: 'pointer'}}
+                                    >
+                                        <span className="small fw-bold text-muted" style={{fontSize: '0.7rem'}}>{showPassword ? 'HIDE' : 'SHOW'}</span>
+                                    </InputGroup.Text>
+                                </InputGroup>
                             </Form.Group>
-                            <Button variant="primary" type="submit" className="w-100">Unlock Dashboard</Button>
+                            <Button variant="primary" type="submit" className="w-100 py-2 fw-bold" disabled={loginLoading}>
+                                {loginLoading ? <Spinner size="sm"/> : 'Unlock Dashboard'}
+                            </Button>
                         </Form>
                     </Card.Body>
                 </Card>
@@ -303,7 +366,7 @@ const SuperAdmin = () => {
 
     // --- Render Main Dashboard ---
     return (
-        <div style={{ background: '#f8f9fa', minHeight: '100vh', paddingBottom: '50px' }}>
+        <div style={{ background: '#f8f9fa', minHeight: '100vh' }}>
             {/* Header */}
             <div className="bg-white shadow-sm py-3 mb-4 sticky-top">
                 <Container fluid className="px-4">
@@ -334,13 +397,22 @@ const SuperAdmin = () => {
                              >
                                  <GitBranch size={16} className="me-2"/> Branches
                              </Button>
-                             <Button 
+                              <Button 
                                 variant={activeTab === 'logs' ? 'dark' : 'light'} 
                                 onClick={() => setActiveTab('logs')}
                                 size="sm"
                              >
                                  <Clock size={16} className="me-2"/> Activity Logs
                              </Button>
+                             <div className="vr mx-2"></div>
+                             <Form.Check 
+                                type="switch"
+                                id="trash-switch"
+                                label="Trash"
+                                checked={showTrash}
+                                onChange={(e) => setShowTrash(e.target.checked)}
+                                className="d-flex align-items-center gap-2 fw-bold text-danger"
+                             />
                              <div className="vr mx-2"></div>
                              <Button variant="outline-danger" size="sm" onClick={handleLogout}>
                                 <LogOut size={16} className="me-2" /> Logout
@@ -378,8 +450,8 @@ const SuperAdmin = () => {
                                     </Button>
                                 </div>
                             </div>
-                            <div className="table-responsive">
-                                <Table hover className="align-middle mb-0">
+                            <div className="table-responsive" style={{ height: 'calc(100vh - 240px)', overflowY: 'auto' }}>
+                                <Table hover className="align-middle mb-0" sticky="top">
                                     <thead className="bg-light">
                                         <tr>
                                             <th>Name</th>
@@ -412,17 +484,25 @@ const SuperAdmin = () => {
                                                             <MoreVertical size={16} />
                                                         </Dropdown.Toggle>
                                                         <Dropdown.Menu align="end">
-                                                            <Dropdown.Item onClick={() => handleEditOrg(org)}>
-                                                                <Edit size={14} className="me-2 text-primary" /> Edit Details
-                                                            </Dropdown.Item>
-                                                            <Dropdown.Item onClick={() => handleToggleOrgStatus(org)}>
-                                                                <Power size={14} className={`me-2 ${org.status === 'active' ? 'text-warning' : 'text-success'}`} /> 
-                                                                {org.status === 'active' ? 'Deactivate' : 'Activate'}
-                                                            </Dropdown.Item>
-                                                            <Dropdown.Divider />
-                                                            <Dropdown.Item onClick={() => handleDeleteOrg(org._id)} className="text-danger">
-                                                                <Trash2 size={14} className="me-2" /> Delete
-                                                            </Dropdown.Item>
+                                                            {!showTrash ? (
+                                                                <>
+                                                                    <Dropdown.Item onClick={() => handleEditOrg(org)}>
+                                                                        <Edit size={14} className="me-2 text-primary" /> Edit Details
+                                                                    </Dropdown.Item>
+                                                                    <Dropdown.Item onClick={() => handleToggleOrgStatus(org)}>
+                                                                        <Power size={14} className={`me-2 ${org.status === 'active' ? 'text-warning' : 'text-success'}`} /> 
+                                                                        {org.status === 'active' ? 'Deactivate' : 'Activate'}
+                                                                    </Dropdown.Item>
+                                                                    <Dropdown.Divider />
+                                                                    <Dropdown.Item onClick={() => handleDeleteOrg(org._id)} className="text-danger">
+                                                                        <Trash2 size={14} className="me-2" /> Move to Trash
+                                                                    </Dropdown.Item>
+                                                                </>
+                                                            ) : (
+                                                                <Dropdown.Item onClick={() => handleRestoreOrg(org._id)} className="text-success">
+                                                                    <RotateCcw size={14} className="me-2" /> Restore
+                                                                </Dropdown.Item>
+                                                            )}
                                                         </Dropdown.Menu>
                                                     </Dropdown>
                                                 </td>
@@ -472,8 +552,8 @@ const SuperAdmin = () => {
                                 </div>
                             </div>
                             
-                            <div className="table-responsive">
-                                <Table hover className="align-middle mb-0">
+                            <div className="table-responsive" style={{ height: 'calc(100vh - 240px)', overflowY: 'auto' }}>
+                                <Table hover className="align-middle mb-0" sticky="top">
                                     <thead className="bg-light">
                                         <tr>
                                             <th>Branch Name</th>
@@ -502,17 +582,25 @@ const SuperAdmin = () => {
                                                             <MoreVertical size={16} />
                                                         </Dropdown.Toggle>
                                                         <Dropdown.Menu align="end">
-                                                            <Dropdown.Item onClick={() => handleEditTenant(tenant)}>
-                                                                <Edit size={14} className="me-2 text-primary" /> Edit Details
-                                                            </Dropdown.Item>
-                                                            <Dropdown.Item onClick={() => handleToggleTenantStatus(tenant)}>
-                                                                <Power size={14} className={`me-2 ${tenant.status === 'active' ? 'text-warning' : 'text-success'}`} /> 
-                                                                {tenant.status === 'active' ? 'Deactivate' : 'Activate'}
-                                                            </Dropdown.Item>
-                                                            <Dropdown.Divider />
-                                                            <Dropdown.Item onClick={() => handleDeleteTenant(tenant._id)} className="text-danger">
-                                                                <Trash2 size={14} className="me-2" /> Delete
-                                                            </Dropdown.Item>
+                                                            {!showTrash ? (
+                                                                <>
+                                                                    <Dropdown.Item onClick={() => handleEditTenant(tenant)}>
+                                                                        <Edit size={14} className="me-2 text-primary" /> Edit Details
+                                                                    </Dropdown.Item>
+                                                                    <Dropdown.Item onClick={() => handleToggleTenantStatus(tenant)}>
+                                                                        <Power size={14} className={`me-2 ${tenant.status === 'active' ? 'text-warning' : 'text-success'}`} /> 
+                                                                        {tenant.status === 'active' ? 'Deactivate' : 'Activate'}
+                                                                    </Dropdown.Item>
+                                                                    <Dropdown.Divider />
+                                                                    <Dropdown.Item onClick={() => handleDeleteTenant(tenant._id)} className="text-danger">
+                                                                        <Trash2 size={14} className="me-2" /> Move to Trash
+                                                                    </Dropdown.Item>
+                                                                </>
+                                                            ) : (
+                                                                <Dropdown.Item onClick={() => handleRestoreTenant(tenant._id)} className="text-success">
+                                                                    <RotateCcw size={14} className="me-2" /> Restore
+                                                                </Dropdown.Item>
+                                                            )}
                                                         </Dropdown.Menu>
                                                     </Dropdown>
                                                 </td>

@@ -14,6 +14,7 @@ const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '', tenantId: '' });
   const [loginType, setLoginType] = useState('user'); // 'user' (Tenant/Staff) or 'client-admin' (Org Owner)
   const [showTenantId, setShowTenantId] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
@@ -59,7 +60,7 @@ const Login = () => {
   
   // Custom back button function
   const handleGoHome = () => {
-      navigate('/home');
+      navigate('/');
   };
 
   // --- UI RENDER ---
@@ -129,15 +130,22 @@ const Login = () => {
                     <InputGroup>
                         <InputGroup.Text className="bg-light border-end-0"><Lock size={16} className="text-muted" /></InputGroup.Text>
                         <Form.Control
-                            type="password"
+                            type={showPassword ? "text" : "password"}
                             name="password"
                             placeholder="••••••••"
                             value={formData.password}
                             onChange={handleChange}
                             required
                             disabled={loading}
-                            className="bg-light border-start-0 ps-0"
+                            className="bg-light border-start-0 border-end-0 ps-0"
                         />
+                         <InputGroup.Text 
+                            className="bg-light border-start-0 cursor-pointer"
+                            onClick={() => setShowPassword(!showPassword)}
+                            style={{cursor: 'pointer'}}
+                        >
+                            <span className="small fw-bold text-muted" style={{fontSize: '0.7rem'}}>{showPassword ? 'HIDE' : 'SHOW'}</span>
+                        </InputGroup.Text>
                     </InputGroup>
                 </Form.Group>
 

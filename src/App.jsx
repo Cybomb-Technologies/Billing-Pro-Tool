@@ -25,6 +25,7 @@ import StaffLog from './pages/StaffLog';
 import SupportData from './pages/Support-data';
 import SuperAdmin from './pages/SuperAdmin';
 import ClientDashboard from './pages/ClientDashboard';
+import ActivityLogs from './pages/ActivityLogs';
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
@@ -71,7 +72,9 @@ function App() {
                 <Route path="/billing" element={<RoleBasedRoute allowedRoles={['staff','admin']}><Billing /></RoleBasedRoute>} />
                 <Route path="/invoices" element={<RoleBasedRoute allowedRoles={['staff','admin']}><Invoices /></RoleBasedRoute>} />
                 <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+                <Route path="/analysis" element={<RoleBasedRoute allowedRoles={['admin']}><Reports /></RoleBasedRoute>} />
                 <Route path="/reports" element={<RoleBasedRoute allowedRoles={['admin']}><Reports /></RoleBasedRoute>} />
+                <Route path="/activity-logs" element={<RoleBasedRoute allowedRoles={['admin']}><ActivityLogs /></RoleBasedRoute>} />
                 <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
                 <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
                 <Route path="/support-data" element={<ProtectedRoute><SupportData /></ProtectedRoute>} />
