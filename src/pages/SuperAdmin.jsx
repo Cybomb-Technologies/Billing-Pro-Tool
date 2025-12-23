@@ -67,12 +67,16 @@ const SuperAdmin = () => {
         }
     }, [isAuthenticated, showTrash]);
 
-    // Reset stats view when switching orgs
+    // Reset & Fetch stats when switching orgs
     useEffect(() => {
         setAggregatedStats(null);
         setBranchStats(null);
         setStatsView('overview');
         setSelectedBranchSlug('');
+        
+        if (selectedOrgForStats) {
+            fetchAggregatedStats();
+        }
     }, [selectedOrgForStats]);
 
     const handleLogin = (e) => {
@@ -280,6 +284,8 @@ const SuperAdmin = () => {
             fetchBranchStats();
         }
     }, [selectedBranchSlug, statsView]);
+
+
 
 
     // --- FILTER & SORT ---
@@ -676,14 +682,14 @@ const SuperAdmin = () => {
                                         </Form.Select>
                                     </Col>
                                     <Col md={2}>
-                                        <Button 
+                                    <Button 
                                             variant="primary" 
                                             className="w-100" 
                                             size="lg"
                                             onClick={fetchAggregatedStats}
                                             disabled={!selectedOrgForStats || loading}
                                         >
-                                            {loading ? <Spinner size="sm" animation="border" /> : <><RefreshCw size={16} className="me-2" /> Load Data</>}
+                                            {loading ? <Spinner size="sm" animation="border" /> : <><RefreshCw size={16} className="me-2" /> Refresh</>}
                                         </Button>
                                     </Col>
 
@@ -762,7 +768,7 @@ const SuperAdmin = () => {
                                 </Row>
 
                                 {/* 3. BRANCH BREAKDOWN TABLE */}
-                                <Card className="border-0 shadow-sm">
+                                <Card className="border-0 shadow-sm mb-4">
                                     <Card.Header className="bg-white py-3">
                                         <h6 className="mb-0 fw-bold">Branch Breakdown</h6>
                                     </Card.Header>
@@ -896,7 +902,7 @@ const SuperAdmin = () => {
                                         </Row>
 
                                         {/* 4. TABLES */}
-                                        <Row className="g-4">
+                                        <Row className="g-4 mb-4 ">
                                             <Col md={6}>
                                                 <Card className="border-0 shadow-sm h-100">
                                                     <Card.Header className="bg-white py-3 border-bottom">

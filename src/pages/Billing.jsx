@@ -154,6 +154,10 @@ const Billing = () => {
         showAlert('Please enter Contact Name.', 'warning');
         return;
       }
+      if (!localCustomerPayload.phone || localCustomerPayload.phone.length < 10) {
+        showAlert('Please enter a valid Phone Number (min 10 digits).', 'warning');
+        return;
+      }
       const created = await createCustomer(localCustomerPayload);
       setSelectedCustomer(created._id);
       setSearchedCustomer(created);
@@ -363,6 +367,11 @@ const Billing = () => {
       if (!selectedCustomer) {
           showAlert('Please select a customer first.', 'warning');
           return;
+      }
+      // Mandatory Mobile Number Check
+      if (searchedCustomer && (!searchedCustomer.phone || searchedCustomer.phone.length < 10)) {
+           showAlert('Customer Mobile Number is mandatory for creating an invoice.', 'warning');
+           return;
       }
       if (invoiceItems.length === 0) {
           showAlert('Please add at least one item.', 'warning');
