@@ -177,9 +177,9 @@ const Settings = () => {
                   <Nav.Item>
                     <Nav.Link eventKey="company" className="d-flex align-items-center"><Briefcase size={18} className="me-2" /> Company Info</Nav.Link>
                   </Nav.Item>
-                  <Nav.Item>
+                  {/* <Nav.Item>
                     <Nav.Link eventKey="payment" className="d-flex align-items-center"><DollarSign size={18} className="me-2" /> Payment Settings</Nav.Link>
-                  </Nav.Item>
+                  </Nav.Item> */}
                   <Nav.Item>
                     <Nav.Link eventKey="users" className="d-flex align-items-center"><Users size={18} className="me-2" /> Manage Users</Nav.Link>
                   </Nav.Item>
