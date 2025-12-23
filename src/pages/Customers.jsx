@@ -25,6 +25,7 @@ import {
   Mail,
   MapPin,
   Building,
+  Eye
 } from "lucide-react";
 import axios from "axios";
 import { API_BASE_URL } from "../config";
@@ -70,8 +71,8 @@ const Customers = () => {
   const handleSubmit = async (formData) => {
     setSubmitting(true);
     try {
-      if (!formData.name.trim() || !formData.phone.trim()) {
-        showAlert("Name and phone number are required", "warning");
+      if (!formData.name.trim()) {
+        showAlert("Name is required", "warning");
         setSubmitting(false);
         return;
       }
@@ -255,7 +256,7 @@ const Customers = () => {
 
               <Col md={6}>
                 <Form.Group className="mb-3">
-                  <Form.Label>Phone *</Form.Label>
+                  <Form.Label>Phone</Form.Label>
                   <InputGroup>
                     <InputGroup.Text>
                       <Phone size={16} />
@@ -265,7 +266,6 @@ const Customers = () => {
                       name="phone"
                       value={formData.phone}
                       onChange={handleChange}
-                      required
                       disabled={submitting}
                     />
                   </InputGroup>
@@ -378,6 +378,173 @@ const Customers = () => {
     );
   };
 
+  // --- View Customer Modal ---
+  const ViewCustomerModal = ({ show, onHide, customer, invoices, loading }) => {
+    if (!customer) return null;
+
+    // Calculate stats
+    const totalSpent = invoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+    const totalInvoices = invoices.length;
+    const pendingAmount = invoices
+      .filter(inv => inv.status === 'pending' || inv.status === 'overdue')
+      .reduce((sum, inv) => sum + (inv.total || 0), 0);
+
+    return (
+      <Modal show={show} onHide={onHide} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title className="fw-bold">Customer Details</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="bg-light">
+           {/* 1. Customer Summary Card */}
+           <Card className="border-0 shadow-sm mb-4">
+              <Card.Body>
+                  <div className="d-flex align-items-center mb-3">
+                      <div className="bg-primary bg-opacity-10 p-3 rounded-circle me-3">
+                          <User size={24} className="text-primary" />
+                      </div>
+                      <div>
+                          <h5 className="fw-bold mb-0">{customer.name}</h5>
+                          <small className="text-muted">{customer.businessName || 'Individual Customer'}</small>
+                      </div>
+                  </div>
+                  <Row className="g-3">
+                      <Col md={6}>
+                          <div className="d-flex align-items-center text-muted mb-1">
+                              <Phone size={14} className="me-2" /> Phone
+                          </div>
+                          <div className="fw-medium">{customer.phone}</div>
+                      </Col>
+                       <Col md={6}>
+                          <div className="d-flex align-items-center text-muted mb-1">
+                              <Mail size={14} className="me-2" /> Email
+                          </div>
+                          <div className="fw-medium">{customer.email || 'N/A'}</div>
+                      </Col>
+                        <Col md={12}>
+                          <div className="d-flex align-items-center text-muted mb-1">
+                              <MapPin size={14} className="me-2" /> Address
+                          </div>
+                          <div className="fw-medium">
+                              {[
+                                  customer.address?.street, 
+                                  customer.address?.city, 
+                                  customer.address?.state, 
+                                  customer.address?.zipCode
+                                ].filter(Boolean).join(', ') || 'N/A'}
+                          </div>
+                      </Col>
+                  </Row>
+              </Card.Body>
+           </Card>
+
+           {/* 2. Stats Cards */}
+           <Row className="mb-4 g-3">
+               <Col md={4}>
+                   <Card className="border-0 shadow-sm h-100 border-start border-4 border-success">
+                       <Card.Body>
+                           <small className="text-muted text-uppercase fw-bold" style={{fontSize: '0.7rem'}}>Total Spent</small>
+                           <h4 className="fw-bold text-success mb-0">₹{totalSpent.toLocaleString()}</h4>
+                       </Card.Body>
+                   </Card>
+               </Col>
+               <Col md={4}>
+                   <Card className="border-0 shadow-sm h-100 border-start border-4 border-primary">
+                       <Card.Body>
+                           <small className="text-muted text-uppercase fw-bold" style={{fontSize: '0.7rem'}}>Total Invoices</small>
+                           <h4 className="fw-bold text-primary mb-0">{totalInvoices}</h4>
+                       </Card.Body>
+                   </Card>
+               </Col>
+                <Col md={4}>
+                   <Card className="border-0 shadow-sm h-100 border-start border-4 border-warning">
+                       <Card.Body>
+                           <small className="text-muted text-uppercase fw-bold" style={{fontSize: '0.7rem'}}>Pending Due</small>
+                           <h4 className="fw-bold text-warning mb-0">₹{pendingAmount.toLocaleString()}</h4>
+                       </Card.Body>
+                   </Card>
+               </Col>
+           </Row>
+
+           {/* 3. Invoices List */}
+           <h6 className="fw-bold mb-3">Transaction History</h6>
+           <Card className="border-0 shadow-sm">
+               <Card.Body className="p-0">
+                   {loading ? (
+                       <div className="text-center py-5"><Spinner size="sm" /> Loading history...</div>
+                   ) : (
+                       <div className="table-responsive" style={{maxHeight: '300px', overflowY: 'auto'}}>
+                           <Table hover className="mb-0 align-middle table-borderless">
+                               <thead className="bg-light sticky-top">
+                                   <tr>
+                                       <th className="ps-4">Invoice #</th>
+                                       <th>Date</th>
+                                       <th>Status</th>
+                                       <th className="text-end pe-4">Amount</th>
+                                   </tr>
+                               </thead>
+                               <tbody>
+                                   {invoices.map(inv => (
+                                       <tr key={inv._id} className="border-bottom">
+                                           <td className="ps-4 fw-medium text-primary">#{inv.invoiceNumber}</td>
+                                           <td>{new Date(inv.createdAt).toLocaleDateString()}</td>
+                                           <td>
+                                               <Badge bg={
+                                                   inv.status === 'paid' ? 'success' : 
+                                                   inv.status === 'pending' ? 'warning' : 'danger'
+                                               }>
+                                                   {inv.status}
+                                               </Badge>
+                                           </td>
+                                           <td className="text-end pe-4 fw-bold">₹{inv.total?.toLocaleString()}</td>
+                                       </tr>
+                                   ))}
+                                   {invoices.length === 0 && (
+                                       <tr>
+                                           <td colSpan="4" className="text-center py-4 text-muted">No invoices found for this customer.</td>
+                                       </tr>
+                                   )}
+                               </tbody>
+                           </Table>
+                       </div>
+                   )}
+               </Card.Body>
+           </Card>
+
+        </Modal.Body>
+        <Modal.Footer>
+            <Button variant="secondary" onClick={onHide}>Close</Button>
+        </Modal.Footer>
+      </Modal>
+    );
+  };
+
+  const [viewCustomer, setViewCustomer] = useState(null);
+  const [customerInvoices, setCustomerInvoices] = useState([]);
+  const [viewModalShow, setViewModalShow] = useState(false);
+  const [viewLoading, setViewLoading] = useState(false);
+
+  const handleViewCustomer = async (customer) => {
+      setViewCustomer(customer);
+      setViewModalShow(true);
+      setViewLoading(true);
+      setCustomerInvoices([]); // Reset first
+
+      try {
+          // Fetch all invoices for this customer
+          const response = await axios.get(`${API_BASE_URL}/invoices`, {
+              params: { customer: customer._id, limit: 100 }, // Fetch up to 100 recent invoices
+              headers: getAuthHeaders()
+          });
+          setCustomerInvoices(response.data.invoices || []);
+      } catch (error) {
+          console.error("Error fetching customer invoices:", error);
+          showAlert("Could not load customer history", "warning");
+      } finally {
+          setViewLoading(false);
+      }
+  };
+
+
   return (
     <div className="p-4 d-flex flex-column flex-grow-1">
       {alert.show && (
@@ -441,21 +608,21 @@ const Customers = () => {
             </div>
           ) : (
             <div className="table-responsive flex-grow-1">
-              <Table hover className="mb-0">
-              <thead>
+              <Table hover className="mb-0 align-middle">
+              <thead className="bg-light">
                 <tr>
-                  <th>Contact Name</th>
-                  <th>Organization</th>
-                  <th>Phone / Email</th>
-                  <th>City</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th className="ps-4 py-3">Contact Name</th>
+                  <th className="py-3">Organization</th>
+                  <th className="py-3">Phone / Email</th>
+                  <th className="py-3">City</th>
+                  <th className="py-3">Status</th>
+                  <th className="py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredCustomers.map((customer) => (
                   <tr key={customer._id}>
-                    <td>
+                    <td className="ps-4 py-3">
                       <div className="fw-semibold">{customer.name}</div>
                       {customer.gstNumber && (
                         <small className="text-muted">
@@ -463,27 +630,30 @@ const Customers = () => {
                         </small>
                       )}
                     </td>
-                    <td>
+                    <td className="py-3">
                       <div className="fw-bold">
                         {customer.businessName || "Individual"}
                       </div>
                     </td>
-                    <td>
+                    <td className="py-3">
                       <div>{customer.phone}</div>
                       {customer.email && (
                         <small className="text-muted">{customer.email}</small>
                       )}
                     </td>
-                    <td>{customer.address?.city || "-"}</td>
-                    <td>
+                    <td className="py-3">{customer.address?.city || "-"}</td>
+                    <td className="py-3">
                       <Badge bg="success">Active</Badge>
                     </td>
-                    <td>
+                    <td className="py-3">
                       <Dropdown>
                         <Dropdown.Toggle variant="light" size="sm">
                           <MoreVertical size={16} />
                         </Dropdown.Toggle>
                         <Dropdown.Menu>
+                          <Dropdown.Item onClick={() => handleViewCustomer(customer)}>
+                            <Eye size={16} className="me-2 text-primary" /> View Details
+                          </Dropdown.Item>
                           <Dropdown.Item
                             onClick={() => handleEditCustomer(customer)}
                           >
@@ -515,6 +685,14 @@ const Customers = () => {
       </Card>
 
       {/* Modals */}
+      <ViewCustomerModal 
+          show={viewModalShow} 
+          onHide={() => setViewModalShow(false)} 
+          customer={viewCustomer}
+          invoices={customerInvoices}
+          loading={viewLoading}
+      />
+      
       <CustomerModal
         show={showModal}
         onHide={handleCloseModal}

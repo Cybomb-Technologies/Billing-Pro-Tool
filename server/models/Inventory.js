@@ -8,4 +8,5 @@ const inventorySchema = new mongoose.Schema({
   location: String
 });
 
+export const InventorySchema = inventorySchema;
 export default mongoose.model('Inventory', inventorySchema);

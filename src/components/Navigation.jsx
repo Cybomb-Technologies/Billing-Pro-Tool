@@ -17,8 +17,10 @@ import {
   Archive,
   Clock,
   HelpCircle,
-  ClipboardList // Used for Staff Logs icon
+  ClipboardList, // Used for Staff Logs icon
+  Activity // Used for Activity Logs icon
 } from "lucide-react";
+import logo from '../assets/logo.png';
 
 const Navigation = ({ children }) => {
   const { user, logout } = useAuth();
@@ -39,11 +41,12 @@ const Navigation = ({ children }) => {
     { path: "/billing", label: "Billing", icon: FileText, roles: ['admin', 'staff'] },
     { path: "/invoices", label: "Invoices", icon: FileText, roles: ['admin', 'staff'] },
     { path: "/products", label: "Products", icon: Package, roles: ['admin', 'staff'] },
-    { path: "/inventory", label: "Inventory", icon: Archive, roles: ['admin', 'staff'] },
-    { path: "/history", label: "History", icon: Clock, roles: ['admin', 'staff'] },
+    { path: "/inventory", label: "Inventory", icon: Archive, roles: ['admin'] },
+    { path: "/history", label: "History", icon: Clock, roles: ['admin'] },
     
     // Role-specific items
     { path: "/reports", label: "Reports", icon: BarChart3, roles: ['admin'] },
+    { path: "/activity-logs", label: "Activity Logs", icon: Activity, roles: ['admin'] },
     { path: "/stafflogs", label: "Staff Logs", icon: ClipboardList, roles: ['staff'] }, // Only for Staff
     
     // Core utility/Admin Items
@@ -63,8 +66,8 @@ const Navigation = ({ children }) => {
 
   return (
     <div className="d-flex">
-      {/* Sidebar is only rendered if user is logged in */}
-      {user && (
+      {/* Sidebar is only rendered if user is logged in AND not on Super Admin or Client Dashboard page */}
+      {user && location.pathname !== '/super-admin' && location.pathname !== '/client-dashboard' && (
         <div
           className="vh-100 position-fixed d-flex flex-column"
           style={{ 
@@ -78,14 +81,13 @@ const Navigation = ({ children }) => {
           <div className="p-4" style={{borderBottom: "1px solid rgba(255,255,255,0.05)"}}>
             <div className="d-flex align-items-center">
               <div
-                className="rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm"
+                className="d-flex align-items-center justify-content-center me-3"
                 style={{ 
                   width: "40px", 
                   height: "40px",
-                  background: "linear-gradient(135deg, var(--primary-color), var(--secondary-color))" 
                 }}
               >
-                <Building size={20} className="text-white" />
+                <img src={logo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
               <div>
                 <h5 className="mb-0 fw-bold" style={{color: "var(--text-on-dark)"}}>Billing Pro</h5>
@@ -165,7 +167,7 @@ const Navigation = ({ children }) => {
       {/* Main content */}
       <div
         className="flex-grow-1"
-        style={{ marginLeft: user ? "var(--sidebar-width)" : "0" }}
+        style={{ marginLeft: (user && location.pathname !== '/super-admin' && location.pathname !== '/client-dashboard') ? "var(--sidebar-width)" : "0" }}
       >
         <div className="min-vh-100 d-flex flex-column" style={{backgroundColor: "var(--bg-body)"}}>{children}</div>
       </div>

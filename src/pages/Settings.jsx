@@ -177,9 +177,9 @@ const Settings = () => {
                   <Nav.Item>
                     <Nav.Link eventKey="company" className="d-flex align-items-center"><Briefcase size={18} className="me-2" /> Company Info</Nav.Link>
                   </Nav.Item>
-                  <Nav.Item>
+                  {/* <Nav.Item>
                     <Nav.Link eventKey="payment" className="d-flex align-items-center"><DollarSign size={18} className="me-2" /> Payment Settings</Nav.Link>
-                  </Nav.Item>
+                  </Nav.Item> */}
                   <Nav.Item>
                     <Nav.Link eventKey="users" className="d-flex align-items-center"><Users size={18} className="me-2" /> Manage Users</Nav.Link>
                   </Nav.Item>
@@ -376,10 +376,7 @@ const Settings = () => {
                             <Form.Control type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
                           </div>
                           <div className="col-md-2">
-                            <Form.Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-                              <option value="staff">Staff</option>
-                              <option value="admin">Admin</option>
-                            </Form.Select>
+                             <Form.Control type="text" value="Staff" disabled />
                           </div>
                           <div className="col-md-2">
                             <Button type="submit" variant="success" className="w-100">

@@ -54,4 +54,5 @@ settingsSchema.pre('save', function (next) {
 });
 
 
+export const SettingsSchema = settingsSchema;
 export default mongoose.model('Settings', settingsSchema);

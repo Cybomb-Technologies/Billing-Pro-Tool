@@ -15,11 +15,14 @@ import {
 } from 'react-bootstrap';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
-import { Plus, Download, MoreVertical, Search, Edit, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Download, MoreVertical, Search, Edit, Trash2, RefreshCw, Upload } from 'lucide-react';
+import Papa from 'papaparse';
+import { useAuth } from '../context/AuthContext'; // Import useAuth
 
 const SETTINGS_API_BASE_URL = `${API_BASE_URL}/settings`;
 
 const Products = () => {
+  const { user } = useAuth(); // Get user
   const [products, setProducts] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -254,7 +257,6 @@ const handleDelete = async () => {
 
   const handleExportCSV = async () => {
     try {
-      const token = localStorage.getItem('token');
       const response = await axios.get(`${API_BASE_URL}/products/export`, {
         responseType: 'blob',
         headers: getAuthHeaders()
@@ -272,6 +274,58 @@ const handleDelete = async () => {
       console.error('Error exporting products:', error);
       showAlert('Error exporting products', 'danger');
     }
+  };
+
+  const handleDownloadTemplate = () => {
+      // Create a template CSV without sensitive fields like Cost Price if needed
+      const headers = ['name', 'sku', 'price', 'stock', 'lowStockThreshold', 'taxRate', 'category', 'description'];
+      const csvContent = Papa.unparse([headers]); // Creates header row only
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'products_import_template.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+  };
+
+  const handleImportCSV = (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: async (results) => {
+              const importedProducts = results.data;
+              if (importedProducts.length === 0) {
+                  showAlert('No products found in CSV', 'warning');
+                  return;
+              }
+
+              // Simple validation/sanitization could go here
+              // Send to backend
+              try {
+                  await axios.post(`${API_BASE_URL}/products/bulk`, importedProducts, {
+                      headers: getAuthHeaders()
+                  });
+                  showAlert(`Successfully imported ${importedProducts.length} products!`);
+                  fetchProducts(); // Refresh list
+              } catch (err) {
+                  console.error("Import error:", err);
+                  showAlert(err.response?.data?.message || 'Error importing products', 'danger');
+              }
+              
+              // Reset file input
+              event.target.value = null; 
+          },
+          error: (err) => {
+              console.error("CSV Parse error:", err);
+              showAlert('Error parsing CSV file', 'danger');
+          }
+      });
   };
 
   const handleChange = (e) => {
@@ -316,17 +370,33 @@ const handleDelete = async () => {
           <p className="text-muted">Manage your product inventory and pricing</p>
         </Col>
         <Col xs="auto" className="d-flex gap-2">
-          {/* <Button variant="outline-secondary" className="d-flex align-items-center" onClick={initialFetch}>
-            <RefreshCw size={18} className="me-2" /> Refresh
-          </Button> */}
-          <Button variant="success" className="d-flex align-items-center" onClick={() => setShowModal(true)}>
-            <Plus size={18} className="me-2" />
-            Add Product
-          </Button>
-          <Button variant="outline-primary" className="d-flex align-items-center" onClick={handleExportCSV}>
-            <Download size={18} className="me-2" />
-            Export CSV
-          </Button>
+          {user?.role !== 'staff' && (
+            <>
+              <input 
+                  type="file" 
+                  accept=".csv" 
+                  style={{ display: 'none' }} 
+                  id="csv-upload-input"
+                  onChange={handleImportCSV} 
+              />
+              <Button variant="outline-info" className="d-flex align-items-center" onClick={handleDownloadTemplate}>
+                <Download size={18} className="me-2" />
+                Template
+              </Button>
+              <Button variant="outline-success" className="d-flex align-items-center" onClick={() => document.getElementById('csv-upload-input').click()}>
+                <Upload size={18} className="me-2" />
+                Import CSV
+              </Button>
+              <Button variant="outline-primary" className="d-flex align-items-center" onClick={handleExportCSV}>
+                <Download size={18} className="me-2" />
+                Export CSV
+              </Button>
+              <Button variant="success" className="d-flex align-items-center" onClick={() => setShowModal(true)}>
+                <Plus size={18} className="me-2" />
+                Add Product
+              </Button>
+            </>
+          )}
         </Col>
       </Row>
 
@@ -390,22 +460,22 @@ const handleDelete = async () => {
         </Card.Header>
         <Card.Body className="p-0 flex-grow-1 d-flex flex-column">
           <div className="table-responsive flex-grow-1">
-            <Table hover className="mb-0">
+            <Table hover className="mb-0 align-middle">
             <thead className="bg-light">
               <tr>
-                <th>Product Name</th>
-                <th>SKU</th>
-                <th>Base Price</th>
-                <th>Total Price</th>
-                <th>Category</th>
-                <th>Stock</th>
-                <th>Actions</th>
+                <th className="ps-4 py-3">Product Name</th>
+                <th className="py-3">SKU</th>
+                <th className="py-3">Base Price</th>
+                <th className="py-3">Total Price</th>
+                <th className="py-3">Category</th>
+                <th className="py-3">Stock</th>
+                {user?.role !== 'staff' && <th className="py-3">Actions</th>}
               </tr>
             </thead>
             <tbody>
               {filteredProducts.map(product => (
                 <tr key={product._id}>
-                  <td>
+                  <td className="ps-4 py-3">
                     <div>
                       <strong>{product.name}</strong>
                       {product.description && (
@@ -413,45 +483,47 @@ const handleDelete = async () => {
                       )}
                     </div>
                   </td>
-                  <td>
+                  <td className="py-3">
                     <Badge bg="outline-secondary" text="dark">
                       {product.sku || 'N/A'}
                     </Badge>
                   </td>
-                  <td>{formatCurrency(product.price)}</td>
-                  <td>
+                  <td className="py-3">{formatCurrency(product.price)}</td>
+                  <td className="py-3">
                     <strong>{formatCurrency(calculateTotalWithTax(product.price, product.taxRate))}</strong>
                   </td>
-                  <td>
+                  <td className="py-3">
                     {product.category && (
                       <Badge bg="primary">{product.category}</Badge>
                     )}
                   </td>
-                   <td>
+                   <td className="py-3">
                     <Badge bg={product.stock === 0 ? "danger" : (product.stock || 0) <= (product.lowStockThreshold || 10) ? "warning" : "success"}>
                       {product.stock ?? 'N/A'} units
                     </Badge>
                   </td>
-                  <td>
-                    <div className="d-flex gap-2">
-                      <Button 
-                        variant="outline-primary" 
-                        size="sm" 
-                        title="Edit"
-                        onClick={() => handleEdit(product)}
-                      >
-                        <Edit size={14} />
-                      </Button>
-                      <Button 
-                        variant="outline-danger" 
-                        size="sm"
-                        title="Delete"
-                        onClick={() => confirmDelete(product)}
-                      >
-                        <Trash2 size={14} />
-                      </Button>
-                    </div>
-                  </td>
+                  {user?.role !== 'staff' && (
+                    <td className="py-3">
+                        <div className="d-flex gap-2">
+                        <Button 
+                            variant="outline-primary" 
+                            size="sm" 
+                            title="Edit"
+                            onClick={() => handleEdit(product)}
+                        >
+                            <Edit size={14} />
+                        </Button>
+                        <Button 
+                            variant="outline-danger" 
+                            size="sm"
+                            title="Delete"
+                            onClick={() => confirmDelete(product)}
+                        >
+                            <Trash2 size={14} />
+                        </Button>
+                        </div>
+                    </td>
+                  )}
                 </tr>
               ))}
               {filteredProducts.length === 0 && (
@@ -552,19 +624,7 @@ const handleDelete = async () => {
                   />
                 </Form.Group>
               </Col>
-              <Col md={3}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Cost Price ({currencySymbol})</Form.Label>
-                  <Form.Control
-                    type="number"
-                    step="0.01"
-                    name="costPrice"
-                    value={formData.costPrice}
-                    onChange={handleChange}
-                    placeholder="0.00"
-                  />
-                </Form.Group>
-              </Col>
+              
               <Col md={3}>
                 <Form.Group className="mb-3">
                   <Form.Label>Tax Rate (%)</Form.Label>

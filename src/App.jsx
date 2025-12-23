@@ -1,4 +1,5 @@
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'; 
+import { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'; 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import './App.css';
@@ -22,6 +23,9 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Operations from './pages/Operations';
 import StaffLog from './pages/StaffLog';
 import SupportData from './pages/Support-data';
+import SuperAdmin from './pages/SuperAdmin';
+import ClientDashboard from './pages/ClientDashboard';
+import ActivityLogs from './pages/ActivityLogs';
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
@@ -36,13 +40,23 @@ function PublicOnlyRoute({ children }) {
   return user ? <Navigate to="/dashboard" /> : children;
 }
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
+
 function App() {
   return (
     
     <AuthProvider>
       
       <Router>
-        
+        <ScrollToTop />
         <div className="App">
           
           <Navigation>
@@ -58,7 +72,9 @@ function App() {
                 <Route path="/billing" element={<RoleBasedRoute allowedRoles={['staff','admin']}><Billing /></RoleBasedRoute>} />
                 <Route path="/invoices" element={<RoleBasedRoute allowedRoles={['staff','admin']}><Invoices /></RoleBasedRoute>} />
                 <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+                <Route path="/analysis" element={<RoleBasedRoute allowedRoles={['admin']}><Reports /></RoleBasedRoute>} />
                 <Route path="/reports" element={<RoleBasedRoute allowedRoles={['admin']}><Reports /></RoleBasedRoute>} />
+                <Route path="/activity-logs" element={<RoleBasedRoute allowedRoles={['admin']}><ActivityLogs /></RoleBasedRoute>} />
                 <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
                 <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
                 <Route path="/support-data" element={<ProtectedRoute><SupportData /></ProtectedRoute>} />
@@ -66,6 +82,13 @@ function App() {
                 <Route path="/settings" element={<RoleBasedRoute allowedRoles={['admin']}><Settings /></RoleBasedRoute>} />
                 <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
                 <Route path="/Operations" element={<RoleBasedRoute allowedRoles={['staff','admin']}><Operations /></RoleBasedRoute>} />
+                
+                {/* Super Admin Route */}
+                <Route path="/super-admin" element={<SuperAdmin />} />
+
+                {/* Client Admin Route */}
+                <Route path="/client-dashboard" element={<ProtectedRoute><ClientDashboard /></ProtectedRoute>} />
+
                 {/* Default redirect */}
                 <Route path="/" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
                 

@@ -1,6 +1,6 @@
 // routes/customers.js
 import express from 'express';
-import Customer from '../models/Customer.js';
+
 import { auth } from '../middleware/auth.js';
 import pkg from 'csv-writer';
 const createObjectCsvStringifier = pkg.createObjectCsvStringifier;
@@ -8,22 +8,29 @@ const createObjectCsvStringifier = pkg.createObjectCsvStringifier;
 const router = express.Router();
 
 // Helper function to normalize phone number
-const normalizePhone = (phone) => phone.replace(/[^\d]/g, '');
+const normalizePhone = (phone) => phone ? phone.replace(/[^\d]/g, '') : '';
 
 // Helper function to check duplicate customer (FIXED: BusinessName removed from uniqueness check)
-const checkDuplicateCustomer = async (phone, email, businessName, excludeId = null) => {
+const checkDuplicateCustomer = async (Customer, phone, email, businessName, excludeId = null) => {
   const normalizedPhone = normalizePhone(phone);
   
   // 1. Check for duplicate Phone or Email
-  let filter = { 
-    $or: [
-      { phone: normalizedPhone }
-    ]
-  };
+  let conditions = [];
+  if (normalizedPhone) {
+      conditions.push({ phone: normalizedPhone });
+  }
 
   if (email && email.trim()) {
-      filter.$or.push({ email: email.toLowerCase().trim() });
+      conditions.push({ email: email.toLowerCase().trim() });
   }
+
+  if (conditions.length === 0) {
+      return { exists: false };
+  }
+
+  let filter = { 
+    $or: conditions
+  };
 
   // NOTE: Business Name check is removed from uniqueness logic to allow multiple contacts from the same organization.
 
@@ -51,6 +58,7 @@ const checkDuplicateCustomer = async (phone, email, businessName, excludeId = nu
 // Get all customers with search and filtering (Updated to search businessName)
 router.get('/', auth, async (req, res) => {
   try {
+    const { Customer } = req.tenantModels;
     const { search, page = 1, limit = 100 } = req.query; // Default high limit for backward compatibility if page not passed? No, better explicit.
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
@@ -97,6 +105,7 @@ router.get('/', auth, async (req, res) => {
 // Search customer by phone OR business name (Updated)
 router.get('/search', auth, async (req, res) => {
   try {
+    const { Customer } = req.tenantModels;
     const { phone, businessName } = req.query;
     
     let filter = {};
@@ -128,17 +137,24 @@ router.get('/search', auth, async (req, res) => {
   }
 });
 
-// Create customer (Updated for duplicate check)
+import { logActivity } from '../services/activityLogger.js';
+
+// ... (existing code)
+
+// Create customer
 router.post('/', auth, async (req, res) => {
   try {
+    // ...
+    // (Ensure context is saved)
+    const { Customer } = req.tenantModels;
     const { phone, email, businessName } = req.body;
     
-    if (!phone?.trim()) {
-      return res.status(400).json({ message: 'Phone number is required' });
+    if (!req.body.name?.trim()) {
+      return res.status(400).json({ message: 'Name is required' });
     }
 
     // Check for duplicates
-    const duplicateCheck = await checkDuplicateCustomer(phone, email, businessName);
+    const duplicateCheck = await checkDuplicateCustomer(Customer, phone, email, businessName);
     if (duplicateCheck.exists) {
       return res.status(400).json({ message: duplicateCheck.message });
     }
@@ -150,11 +166,22 @@ router.post('/', auth, async (req, res) => {
     });
     
     await customer.save();
+
+    // Log Activity
+    logActivity({
+      req,
+      action: 'CREATE',
+      module: 'CUSTOMER', // Need to check if CUSTOMER is in enum? No, use OTHER or update Enum. Enum is: ['AUTH', 'PRODUCT', 'INVOICE', 'STAFF_LOG', 'SUPPORT', 'BRANCH', 'ORGANIZATION', 'OTHER']
+      // Let's use OTHER for now or treat as generic.
+      description: `Created customer: ${customer.name}`,
+      targetId: customer._id,
+      metadata: { phone: customer.phone }
+    });
+
     res.status(201).json(customer);
   } catch (error) {
-    console.error('Error creating customer:', error);
-    
-    if (error.name === 'ValidationError') {
+     // ...
+     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({ message: errors.join(', ') });
     }
@@ -163,44 +190,51 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// Update customer (Updated for duplicate check)
+// Update customer
 router.put('/:id', auth, async (req, res) => {
   try {
+    const { Customer } = req.tenantModels;
+    // ... params ...
     const { phone, email, businessName } = req.body;
     const customerId = req.params.id;
 
-    if (!phone?.trim()) {
-      return res.status(400).json({ message: 'Phone number is required' });
+    if (!req.body.name?.trim()) {
+        return res.status(400).json({ message: 'Name is required' });
     }
-
+  
     // Check for duplicates excluding current customer
-    const duplicateCheck = await checkDuplicateCustomer(phone, email, businessName, customerId);
+    const duplicateCheck = await checkDuplicateCustomer(Customer, phone, email, businessName, customerId);
     if (duplicateCheck.exists) {
-      return res.status(400).json({ message: duplicateCheck.message });
+        return res.status(400).json({ message: duplicateCheck.message });
     }
 
     const customer = await Customer.findByIdAndUpdate(
-      customerId,
+      req.params.id,
       {
-        ...req.body,
-        phone: normalizePhone(phone),
-        email: email?.toLowerCase().trim()
+         ...req.body,
+         phone: normalizePhone(phone),
+         email: email?.toLowerCase().trim()
       },
-      { 
-        new: true, 
-        runValidators: true 
-      }
+      { new: true, runValidators: true }
     );
     
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
     
+    // Log Activity
+    logActivity({
+      req,
+      action: 'UPDATE',
+      module: 'CUSTOMER', 
+      description: `Updated customer: ${customer.name}`,
+      targetId: customer._id
+    });
+
     res.json(customer);
   } catch (error) {
-    console.error('Error updating customer:', error);
-    
-    if (error.name === 'ValidationError') {
+     // ...
+     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({ message: errors.join(', ') });
     }
@@ -209,15 +243,25 @@ router.put('/:id', auth, async (req, res) => {
   }
 });
 
-// Delete customer (Existing)
+// Delete customer
 router.delete('/:id', auth, async (req, res) => {
   try {
+    const { Customer } = req.tenantModels;
     const customer = await Customer.findByIdAndDelete(req.params.id);
     
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
     
+    // Log Activity
+    logActivity({
+      req,
+      action: 'DELETE',
+      module: 'CUSTOMER',
+      description: `Deleted customer: ${customer.name}`,
+      targetId: customer._id
+    });
+
     res.json({ 
       message: 'Customer deleted successfully',
       deletedCustomer: customer 
@@ -231,6 +275,7 @@ router.delete('/:id', auth, async (req, res) => {
 // Get single customer (Existing)
 router.get('/:id', auth, async (req, res) => {
   try {
+    const { Customer } = req.tenantModels;
     const customer = await Customer.findById(req.params.id);
     
     if (!customer) {
@@ -247,6 +292,7 @@ router.get('/:id', auth, async (req, res) => {
 // Export customers to CSV (Updated to include businessName)
 router.get('/export/csv', auth, async (req, res) => {
   try {
+    const { Customer } = req.tenantModels;
     const customers = await Customer.find().sort({ name: 1 });
 
     const csvStringifier = createObjectCsvStringifier({

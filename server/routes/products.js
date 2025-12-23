@@ -1,9 +1,10 @@
 // routes/products.js
 import express from 'express';
-import Product from '../models/Product.js';
+
 import { auth } from '../middleware/auth.js';
 import pkg from 'csv-writer';
 import { sendRestockNotification, sendLowStockOrderSuggestion } from '../utils/emailService.js';
+import { logActivity } from '../services/activityLogger.js';
 const createObjectCsvStringifier = pkg.createObjectCsvStringifier;
 
 const router = express.Router();
@@ -11,6 +12,7 @@ const router = express.Router();
 // Get all products with pagination
 router.get('/', auth, async (req, res) => {
   try {
+    const { Product } = req.tenantModels;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
@@ -46,6 +48,7 @@ router.get('/', auth, async (req, res) => {
 // Create product (Handles initial stock/threshold fields)
 router.post('/', auth, async (req, res) => {
   try {
+    const { Product } = req.tenantModels;
     console.log('Creating product with data:', req.body);
     
     // Ensure all required numeric fields are converted/defaulted
@@ -59,6 +62,16 @@ router.post('/', auth, async (req, res) => {
     const product = new Product(productData);
     const savedProduct = await product.save();
     
+    // Log Activity
+    logActivity({
+      req,
+      action: 'CREATE',
+      module: 'PRODUCT',
+      description: `Created product: ${savedProduct.name} (${savedProduct.sku})`,
+      targetId: savedProduct._id,
+      metadata: { sku: savedProduct.sku, price: savedProduct.price }
+    });
+
     console.log('Product created successfully:', savedProduct._id);
     res.status(201).json(savedProduct);
   } catch (error) {
@@ -70,9 +83,75 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
+// Bulk Import Products
+router.post('/bulk', auth, async (req, res) => {
+  try {
+    const { Product } = req.tenantModels;
+    const products = req.body;
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ message: 'Invalid payload: Expected an array of products.' });
+    }
+
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    // Process each product
+    const bulkOps = products.map(productData => {
+       // Defaults and conversions
+       const p = {
+           ...productData,
+           taxRate: productData.taxRate ? parseFloat(productData.taxRate) : 18,
+           stock: parseInt(productData.stock) || 0,
+           lowStockThreshold: parseInt(productData.lowStockThreshold) || 10,
+           price: parseFloat(productData.price) || 0,
+           // Handling optional fields
+           costPrice: productData.costPrice ? parseFloat(productData.costPrice) : undefined
+       };
+       
+       return {
+           updateOne: {
+               filter: { sku: p.sku }, // Match by SKU
+               update: { $set: p },   // Update if exists (or insert if upsert=true)
+               upsert: true
+           }
+       };
+    });
+
+    if (bulkOps.length > 0) {
+        const result = await Product.bulkWrite(bulkOps);
+        results.success = result.upsertedCount + result.modifiedCount; // Approximate success count
+        // For simplicity in bulkWrite, we assume success unless thrown. 
+        // Logic for exact 'inserted' vs 'updated' is in result object.
+        console.log('Bulk write result:', result);
+
+        // Log Activity
+        logActivity({
+          req,
+          action: 'CREATE',
+          module: 'PRODUCT',
+          description: `Bulk imported ${products.length} products. Success: ${results.success}`,
+          metadata: { count: products.length, success: results.success }
+        });
+    }
+
+    res.json({ 
+        message: 'Bulk import processed', 
+        details: results 
+    });
+
+  } catch (error) {
+    console.error('Error during bulk import:', error);
+    res.status(500).json({ message: 'Error processing bulk import: ' + error.message });
+  }
+});
+
 // Update product (Handles stock/threshold updates via main edit form)
 router.put('/:id', auth, async (req, res) => {
   try {
+    const { Product } = req.tenantModels;
     console.log('Updating product ID:', req.params.id);
     console.log('Update data:', req.body);
     
@@ -100,6 +179,16 @@ router.put('/:id', auth, async (req, res) => {
         sendLowStockOrderSuggestion(product);
     }
     
+    // Log Activity
+    logActivity({
+      req,
+      action: 'UPDATE',
+      module: 'PRODUCT',
+      description: `Updated product: ${product.name}`,
+      targetId: product._id,
+      metadata: { sku: product.sku }
+    });
+
     console.log('Product updated successfully:', product._id);
     res.json(product);
   } catch (error) {
@@ -114,6 +203,7 @@ router.put('/:id', auth, async (req, res) => {
 // --- NEW ROUTE: Update Stock Level (used by Inventory.jsx Restock Modal) ---
 router.put('/:id/stock', auth, async (req, res) => {
   try {
+    const { Product } = req.tenantModels;
     const { stock } = req.body;
     if (typeof stock !== 'number' || stock < 0) {
       return res.status(400).json({ message: 'Invalid stock value provided.' });
@@ -166,10 +256,21 @@ router.put('/:id/stock', auth, async (req, res) => {
 // Delete product
 router.delete('/:id', auth, async (req, res) => {
   try {
+    const { Product } = req.tenantModels;
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
+    
+    // Log Activity
+    logActivity({
+      req,
+      action: 'DELETE',
+      module: 'PRODUCT',
+      description: `Deleted product: ${product.name} (${product.sku})`,
+      targetId: product._id
+    });
+
     res.json({ message: 'Product deleted permanently' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -179,6 +280,7 @@ router.delete('/:id', auth, async (req, res) => {
 // Export products to CSV
 router.get('/export', auth, async (req, res) => {
   try {
+    const { Product } = req.tenantModels;
     const products = await Product.find({ isActive: true });
     
     const csvStringifier = createObjectCsvStringifier({

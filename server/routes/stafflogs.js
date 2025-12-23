@@ -1,7 +1,9 @@
 // routes/stafflogs.js
 import express from 'express';
-import StaffLog from '../models/StaffLog.js'; // Adjust path as needed
+
 import { auth } from '../middleware/auth.js'; // Assuming you use auth middleware
+
+import { logActivity } from '../services/activityLogger.js';
 
 const router = express.Router();
 
@@ -9,6 +11,7 @@ const router = express.Router();
 // Submit a new task log
 router.post('/', auth, async (req, res) => {
     try {
+        const { StaffLog } = req.tenantModels;
         const { date, category, details, status } = req.body;
         
         // Use authenticated user info for security and context
@@ -22,6 +25,17 @@ router.post('/', auth, async (req, res) => {
         });
 
         const savedLog = await newLog.save();
+
+        // Log Activity
+        logActivity({
+            req,
+            action: 'CREATE',
+            module: 'STAFF_LOG',
+            description: `Staff submitted log: ${category}`,
+            targetId: savedLog._id,
+            metadata: { date, status }
+        });
+
         res.status(201).json(savedLog);
     } catch (error) {
         console.error('Error creating staff log:', error);
@@ -33,6 +47,7 @@ router.post('/', auth, async (req, res) => {
 // Fetch all logs, primarily filtered by the requesting user (staff ID)
 router.get('/', auth, async (req, res) => {
     try {
+        const { StaffLog } = req.tenantModels;
         // --- Filtering Logic ---
         const userIdToFilter = req.user.role === 'staff' ? req.user.id : req.query.userId;
         

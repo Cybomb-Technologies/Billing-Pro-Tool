@@ -23,10 +23,11 @@ const customerSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
-    required: true,
+    required: true, // Changed to true to mandatory phone
     trim: true,
     validate: {
       validator: function(phone) {
+        if (!phone) return false; // Fix: Phone is now required
         // Remove all non-digit characters and check length
         const digitsOnly = phone.replace(/\D/g, '');
         return digitsOnly.length >= 10;
@@ -69,4 +70,5 @@ customerSchema.path('gstNumber').validate(function(gstNumber) {
   return gstRegex.test(gstNumber);
 }, 'Invalid GST number format');
 
+export const CustomerSchema = customerSchema;
 export default mongoose.model('Customer', customerSchema);
